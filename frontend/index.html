@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>五行投资日报</title>
+  <link rel="stylesheet" href="style.css?v=22">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>五行投资日报</h1>
+      <div class="subtitle">以行业因子为表，市场数据为里，投资决策为主</div>
+      <div class="header-stats">
+        <span id="totalReports">加载中...</span>
+      </div>
+    </header>
+
+    <nav class="main-nav">
+      <button id="btnLatest" class="nav-btn active">📊 大盘日报</button>
+      <button id="btnStock" class="nav-btn">📈 个股分析</button>
+      <button id="btnArchive" class="nav-btn">📚 历史归档</button>
+    </nav>
+
+    <main>
+      <!-- 大盘日报区域 -->
+      <section id="todaySection" class="report-section">
+        <!-- 版本切换标签 -->
+        <div class="version-tabs">
+          <button class="version-tab active" data-type="morning">🌅 早盘版</button>
+          <button class="version-tab" data-type="noon">🌞 午间版</button>
+          <button class="version-tab" data-type="evening">🌙 盘后版</button>
+        </div>
+        
+        <div class="loading" id="loading">正在加载最新日报...</div>
+        <div id="reportContent" class="report-content" style="display: none;"></div>
+      </section>
+
+      <!-- 个股分析区域 -->
+      <section id="stockSection" class="stock-section" style="display: none;">
+        <div class="stock-search">
+          <input type="text" id="stockInput" placeholder="输入股票代码或名称（如：000001 或 平安银行）">
+          <button id="btnAnalyze" class="btn-primary">🔍 四维分析</button>
+        </div>
+        <div id="stockResult" class="stock-result"></div>
+        
+        <!-- 历史查询记录 -->
+        <div class="stock-history-section">
+          <div class="history-header">
+            <h3>📜 查询历史</h3>
+            <button id="btnClearHistory" class="btn-text">清空</button>
+          </div>
+          <div id="stockHistory" class="stock-history-list"></div>
+        </div>
+      </section>
+
+      <!-- 历史归档区域 -->
+      <section id="archiveSection" class="archive-section" style="display: none;">
+        <div class="archive-list" id="archiveList"></div>
+        <div class="pagination" id="pagination"></div>
+      </section>
+    </main>
+
+    <footer>
+      <p>· 数据驱动 · 风险优先 · 不构成投资建议 ·</p>
+      <p class="disclaimer">⚠️ 投资有风险，入市需谨慎</p>
+    </footer>
+  </div>
+
+  <script src="app.js?v=22"></script>
+</body>
+</html>

@@ -7,6 +7,7 @@ const API_BASE = (function() {
 let currentPage = 1;
 const pageSize = 10;
 let currentReportType = getDefaultReportType();
+let latestBacktestCalibration = null;
 
 // DOM元素
 const btnLatest = document.getElementById('btnLatest');
@@ -77,6 +78,8 @@ function initVersionTabs() {
 }
 
 function getDefaultReportType() {
+  const urlType = new URLSearchParams(window.location.search).get('type');
+  if (['morning', 'noon', 'evening'].includes(urlType)) return urlType;
   const hour = new Date().getHours();
   if (hour >= 15) return 'evening';
   if (hour >= 11) return 'noon';
@@ -324,14 +327,27 @@ async function loadLatest() {
     }
 
     const data = await res.json();
+    latestBacktestCalibration = await loadBacktestCalibration();
     renderReport(data);
     loading.style.display = 'none';
     reportContent.style.display = 'block';
   } catch (err) {
     console.error('loadLatest error:', err);
     loading.style.display = 'none';
-    reportContent.innerHTML = '<div class=\error-state\><p>加载失败，请刷新重试</p><p class=\error-detail\>' + (err.message || '未知错误') + '</p></div>';
+    reportContent.innerHTML = '<div class="error-state"><p>加载失败，请刷新重试</p><p class="error-detail">' + escapeHtml(err.message || '未知错误') + '</p></div>';
     reportContent.style.display = 'block';
+  }
+}
+
+async function loadBacktestCalibration() {
+  try {
+    const res = await fetch(`${API_BASE}/backtest/institutional-status`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.latest_runs && data.latest_runs.length ? data.latest_runs[0] : null;
+  } catch (err) {
+    console.warn('加载回测校准失败:', err.message || err);
+    return null;
   }
 }
 
@@ -341,13 +357,46 @@ function getTypeName(type) {
 }
 
 // 渲染日报
+function renderMarketOverview(data) {
+  const cards = [
+    { label: '沪深 300', value: data.hs300_value, change: data.hs300_change },
+    { label: '上证指数', value: data.sh_value, change: data.sh_change },
+    { label: '深证成指', value: data.sz_value, change: data.sz_change },
+    { label: '创业板指', value: data.cy_value, change: data.cy_change }
+  ];
+
+  let html = '<div class="overview market-overview">';
+  cards.forEach(function(card) {
+    const change = Number(card.change || 0);
+    const cls = change >= 0 ? 'positive' : 'negative';
+    const value = Number.isFinite(Number(card.value)) ? Number(card.value).toFixed(2) : '-';
+    html += '<div class="overview-card">';
+    html += '<div class="label">' + escapeHtml(card.label) + '</div>';
+    html += '<div class="value ' + cls + '">' + value + ' <small>(' + formatChangePct(change) + ')</small></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderRiskSection(data) {
+  if (!data.risk_warning) return '';
+  const content = escapeHtml(data.risk_warning)
+    .replace(/(事实|预测|风险场景)：/g, '<strong class="risk-label">$1</strong>：');
+  return `
+    <div class="risk-section">
+      <h2>⚠️ 风险提示</h2>
+      <div class="risk-content structured-risk">${content}</div>
+    </div>
+  `;
+}
+
 function renderReport(data) {
-  const changeClass = data.hs300_change >= 0 ? 'positive' : 'negative';
 
   const typeNames = {
-    'morning': '🌅 早盘版',
-    'noon': '🌞 午间版',
-    'evening': '🌙 盘后版'
+    'morning': '早盘版',
+    'noon': '午间版',
+    'evening': '盘后版'
   };
   const typeName = typeNames[data.report_type] || '日报';
 
@@ -358,44 +407,24 @@ function renderReport(data) {
     </div>
   `;
 
+  html += renderMarketOverview(data);
   html += renderDecisionDashboard(data);
+  html += renderBacktestCalibrationSection(latestBacktestCalibration);
 
-  // 因子来源
-  if (data.bazi) {
-    html += renderFactorSourceDetails(data.bazi);
+  if (data.market_momentum) {
+    html += renderMarketMomentumSection(data.market_momentum);
   }
 
-  // V3 结构化解读（替代旧版纯文本解读）
-  if (data.bazi_interpretation) {
-    html += renderBaziInterpretationV3(data);
+  if (data.key_variables) {
+    html += renderKeyVariablesSection(data.key_variables);
   }
+
+  html += renderRiskSection(data);
 
   // 早盘预测验证（仅午间版）
   if (data.report_type === 'noon' && data.prediction_verification) {
     html += renderPredictionVerification(data.prediction_verification);
   }
-
-  // 市场概览
-  html += `
-    <div class="overview">
-      <div class="overview-card">
-        <div class="label">沪深 300</div>
-        <div class="value ${changeClass}">${data.hs300_value ? data.hs300_value.toFixed(2) : '-'} <small>(${data.hs300_change ? data.hs300_change.toFixed(2) : '-'}%)</small></div>
-      </div>
-      <div class="overview-card">
-        <div class="label">上证指数</div>
-        <div class="value ${changeClass}">${data.sh_value ? data.sh_value.toFixed(2) : '-'} <small>(${data.sh_change ? data.sh_change.toFixed(2) : '-'}%)</small></div>
-      </div>
-      <div class="overview-card">
-        <div class="label">深证成指</div>
-        <div class="value ${data.sz_change >= 0 ? 'positive' : 'negative'}">${data.sz_value ? data.sz_value.toFixed(2) : '-'} <small>(${data.sz_change ? data.sz_change.toFixed(2) : '-'}%)</small></div>
-      </div>
-      <div class="overview-card">
-        <div class="label">创业板指</div>
-        <div class="value ${data.cy_change >= 0 ? 'positive' : 'negative'}">${data.cy_value ? data.cy_value.toFixed(2) : '-'} <small>(${data.cy_change ? data.cy_change.toFixed(2) : '-'}%)</small></div>
-      </div>
-    </div>
-  `;
 
   if (data.global_indexes) {
     html += renderGlobalMarketSection(data.global_indexes);
@@ -413,6 +442,14 @@ function renderReport(data) {
   // 午间异动（仅午间版）
   if (data.report_type === 'noon' && data.alerts && data.alerts.length > 0) {
     html += renderNoonAlerts(data.alerts);
+  }
+
+  if (data.bazi) {
+    html += renderFactorSourceDetails(data.bazi);
+  }
+
+  if (data.bazi_interpretation) {
+    html += renderBaziInterpretationV3(data);
   }
 
   // 关注标的
@@ -454,16 +491,6 @@ function renderReport(data) {
   // 关注标的四维分析（新增！）
   if (data.stocks && data.stocks.length > 0) {
     html += renderStockAnalysisList(data.stocks);
-  }
-
-  // 风险提示
-  if (data.risk_warning) {
-    html += `
-      <div class="risk-section">
-        <h2>⚠️ 风险提示</h2>
-        <div class="risk-content">${data.risk_warning}</div>
-      </div>
-    `;
   }
 
   // 五行验证
@@ -520,6 +547,20 @@ function parseStrategyText(text) {
   };
 }
 
+function getStrategyModel(data) {
+  if (data.operation_advice) {
+    return {
+      stance: data.operation_advice.stance || '观察',
+      position: data.operation_advice.position || '控制仓位',
+      rhythm: data.operation_advice.rhythm || '等待确认',
+      focus: data.operation_advice.focus || '等待主线确认',
+      risk: data.operation_advice.risk || data.risk_warning || '指数走弱或主线断档时降低仓位',
+      macro: data.operation_advice.macro || []
+    };
+  }
+  return parseStrategyText(data.five_elements);
+}
+
 function formatChangePct(value) {
   const n = Number(value || 0);
   return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
@@ -549,14 +590,14 @@ function getCompassWeights(data) {
 function renderBaguaCompass(data) {
   const weights = getCompassWeights(data);
   const nodes = [
-    { symbol: '☰', name: '乾', label: '金融周期', element: '金', x: 50, y: 4 },
-    { symbol: '☱', name: '兑', label: '消费传媒', element: '金', x: 81, y: 16 },
-    { symbol: '☲', name: '离', label: '科技成长', element: '火', x: 94, y: 50 },
-    { symbol: '☳', name: '震', label: '电力设备', element: '木', x: 81, y: 84 },
-    { symbol: '☴', name: '巽', label: '医药消费', element: '木', x: 50, y: 96 },
-    { symbol: '☵', name: '坎', label: '港股外盘', element: '水', x: 19, y: 84 },
-    { symbol: '☶', name: '艮', label: '基建地产', element: '土', x: 6, y: 50 },
-    { symbol: '☷', name: '坤', label: '红利防守', element: '土', x: 19, y: 16 }
+    { symbol: '☰', name: '乾', label: '金融周期', element: '金', x: 50, y: 9 },
+    { symbol: '☱', name: '兑', label: '消费传媒', element: '金', x: 78, y: 21 },
+    { symbol: '☲', name: '离', label: '科技成长', element: '火', x: 91, y: 50 },
+    { symbol: '☳', name: '震', label: '电力设备', element: '木', x: 78, y: 79 },
+    { symbol: '☴', name: '巽', label: '医药消费', element: '木', x: 50, y: 91 },
+    { symbol: '☵', name: '坎', label: '港股外盘', element: '水', x: 22, y: 79 },
+    { symbol: '☶', name: '艮', label: '基建地产', element: '土', x: 9, y: 50 },
+    { symbol: '☷', name: '坤', label: '红利防守', element: '土', x: 22, y: 21 }
   ];
   const topElement = Object.entries(weights).sort((a, b) => b[1] - a[1])[0]?.[0] || '火';
   const colorMap = { '木': 'wood', '火': 'fire', '土': 'earth', '金': 'gold', '水': 'water' };
@@ -592,23 +633,205 @@ function renderMarketRadar(data, strategy) {
   radar.forEach(item => {
     html += '<div class="radar-item"><span>' + item.label + '</span><strong class="' + item.cls + '">' + item.value + '</strong></div>';
   });
-  html += '<div class="radar-note">' + escapeHtml(strategy.risk) + '</div>';
+  html += '<div class="radar-note">' + escapeHtml(extractRiskScenario(data.risk_warning || strategy.risk)) + '</div>';
   html += '</div>';
   return html;
 }
 
+function extractRiskScenario(text) {
+  const value = String(text || '');
+  const match = value.match(/风险场景：(.+)$/);
+  return match ? match[1] : value;
+}
+
+function compactPositionText(position) {
+  const value = String(position || '').trim();
+  const match = value.match(/([1-9](?:-[1-9])?成以内|[1-9](?:-[1-9])?成|[1-9]成以下)/);
+  return match ? match[1] : (value || '控制仓位');
+}
+
+function getTopIndustryNames(data, count) {
+  return (data.industries || [])
+    .slice(0, count || 3)
+    .map(item => item.name)
+    .filter(Boolean)
+    .join('、') || '等待主线确认';
+}
+
+function getElementTone(data) {
+  const weights = getCompassWeights(data);
+  const sorted = Object.entries(weights).sort((a, b) => b[1] - a[1]);
+  const top = sorted[0] || ['火', 0];
+  const low = sorted[sorted.length - 1] || ['水', 0];
+  return top[0] + '旺' + Math.round(top[1] * 100) + '%，' + low[0] + '弱';
+}
+
+function getAttackReason(data) {
+  const top = (data.industries || [])[0] || {};
+  const profile = top.element_profile || top.element_name || getElementTone(data);
+  const mainFlow = data.market_momentum && data.market_momentum.mainForce
+    ? data.market_momentum.mainForce.netInflow
+    : null;
+  const flow = Number.isFinite(Number(mainFlow)) ? '主力' + formatFlowYi(mainFlow) : '资金实时源未完全返回';
+  return profile + '；' + flow;
+}
+
+function getDefenseDirection(data) {
+  const etfLeaders = ((data.market_momentum || {}).etfFlow || {}).leaders || [];
+  const defensiveEtfs = etfLeaders
+    .filter(item => /红利|300|50|低波|价值/.test(item.name || ''))
+    .slice(0, 2)
+    .map(item => item.name);
+  if (defensiveEtfs.length) return defensiveEtfs.join('、');
+  const stance = getStrategyModel(data).stance || '';
+  if (/防守|观察|中性/.test(stance)) return '红利低波、食品饮料';
+  return '沪深300、红利低波';
+}
+
+function getAvoidDirection(data) {
+  const highPressure = (data.industries || [])
+    .filter(item => /压力测试high|高压|丙午对金|金因子有压制/.test(item.reason || ''))
+    .slice(0, 2)
+    .map(item => item.name)
+    .filter(Boolean);
+  if (highPressure.length) return highPressure.join('、');
+  const mainFlow = data.market_momentum && data.market_momentum.mainForce
+    ? Number(data.market_momentum.mainForce.netInflow || 0)
+    : 0;
+  if (mainFlow < 0) return '高位追涨、单票重仓';
+  return '弱势放量下跌方向';
+}
+
+function getSpecialReminder(data, strategy) {
+  const focus = getTopIndustryNames(data, 2);
+  if (data.report_type === 'evening') {
+    return '明日开盘30分钟';
+  }
+  if (data.report_type === 'noon') {
+    return '下午2:30后';
+  }
+  return '开盘30分钟内';
+}
+
+function getSpecialReminderNote(data, strategy) {
+  const focus = getTopIndustryNames(data, 2);
+  if (data.report_type === 'evening') {
+    return '先验证' + focus + '能否放量延续，再决定是否加仓';
+  }
+  if (data.report_type === 'noon') {
+    return '若量能不跟随，尾盘不扩大仓位';
+  }
+  return '不追首波拉升，等宽度和资金确认';
+}
+
+function buildOneLineConclusion(data, strategy) {
+  const focus = getTopIndustryNames(data, 3);
+  const position = compactPositionText(strategy.position);
+  const breadth = data.market_breadth || {};
+  const weakBreadth = Number(breadth.down || 0) > Number(breadth.up || 0);
+  const flow = Number((data.market_momentum || {}).mainForce?.netInflow || 0);
+  if (weakBreadth || flow < 0) {
+    return '方向有亮点，但宽度和主力资金不支持激进扩仓；仓位压在' + position + '，只跟踪' + focus + '的延续性。';
+  }
+  return '市场给出进攻线索，但仍要等量能确认；仓位按' + position + '执行，优先从' + focus + '里做分散候选。';
+}
+
+function renderDecisionRow(label, score, note, tone) {
+  return '<tr><th>' + escapeHtml(label) + '</th><td><span class="decision-dot dot-' + tone + '"></span>' + escapeHtml(score) + '</td><td>' + escapeHtml(note) + '</td></tr>';
+}
+
 function renderDecisionDashboard(data) {
-  const strategy = parseStrategyText(data.five_elements);
+  const strategy = getStrategyModel(data);
+  const position = compactPositionText(strategy.position);
+  const attack = getTopIndustryNames(data, 3);
+  const defense = getDefenseDirection(data);
+  const avoid = getAvoidDirection(data);
+  const reminder = getSpecialReminder(data, strategy);
+  const reminderNote = getSpecialReminderNote(data, strategy);
+  const oneLine = buildOneLineConclusion(data, strategy);
+
   let html = '<section class="decision-dashboard">';
   html += '<div class="dashboard-copy">';
-  html += '<div class="dashboard-kicker">今日策略总览</div>';
+  html += '<div class="dashboard-kicker">综合评分 · 先看结论再看依据</div>';
   html += '<h2>' + escapeHtml(strategy.stance) + '</h2>';
-  html += '<div class="dashboard-position">' + escapeHtml(strategy.position) + '</div>';
-  html += '<p>' + escapeHtml(strategy.rhythm) + '</p>';
-  html += '<div class="dashboard-focus"><span>主线</span>' + escapeHtml(strategy.focus) + '</div>';
+  html += '<div class="dashboard-table-wrap"><table class="decision-score-table"><thead><tr><th>维度</th><th>评分</th><th>说明</th></tr></thead><tbody>';
+  html += renderDecisionRow('仓位建议', position, strategy.position, /防守|3成|2成/.test(strategy.position) ? 'red' : 'yellow');
+  html += renderDecisionRow('进攻方向', attack, getAttackReason(data), 'green');
+  html += renderDecisionRow('防守方向', defense, /防守|观察|中性/.test(strategy.stance) ? '震荡时优先保留防守底仓' : '用于对冲高弹性行业波动', 'green');
+  html += renderDecisionRow('回避方向', avoid, '资金或压力测试未确认前，不做追涨重仓', 'red');
+  html += renderDecisionRow('特别提醒', reminder, reminderNote, 'yellow');
+  html += '</tbody></table></div>';
+  html += '<div class="dashboard-one-line"><span>一句话</span><strong>' + escapeHtml(oneLine) + '</strong></div>';
+  html += '<div class="dashboard-discipline"><span>执行纪律</span><strong>' + escapeHtml(strategy.rhythm) + '；分散到3-5个候选方向，单一行业/个股只作排序。</strong></div>';
   html += '</div>';
   html += renderBaguaCompass(data);
   html += renderMarketRadar(data, strategy);
+  html += '</section>';
+  return html;
+}
+
+function formatMetricPct(value, digits) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  return (n >= 0 ? '+' : '') + n.toFixed(digits === undefined ? 2 : digits) + '%';
+}
+
+function renderBacktestCalibrationSection(run) {
+  if (!run || !run.metrics) return '';
+  const gross = run.metrics.portfolios && run.metrics.portfolios.top5;
+  const net = run.metrics.portfolios_after_cost && run.metrics.portfolios_after_cost.top5;
+  if (!gross && !net) return '';
+  const cost = Number(run.metrics.round_trip_cost_pct || 0);
+  const start = run.start_date || (run.params && run.params.startDate) || '-';
+  const end = run.end_date || (run.params && run.params.endDate) || '-';
+  let html = '<section class="backtest-calibration">';
+  html += '<div class="calibration-copy">';
+  html += '<span class="calibration-kicker">今日回测校准</span>';
+  html += '<h2>候选池有效，成本后边际收窄</h2>';
+  html += '<p>最新机构吸筹 MVP 回测显示，Top5 分散组合比单点押注更适合日报落地；实际执行需扣除滑点和交易成本。</p>';
+  html += '</div>';
+  html += '<div class="calibration-metrics">';
+  if (gross) {
+    html += '<div><span>Top5未扣成本超额</span><strong>' + formatMetricPct(gross.avg_excess_return_pct, 3) + '</strong></div>';
+    html += '<div><span>Top5跑赢率</span><strong>' + formatMetricPct((gross.hit_rate_vs_benchmark || 0) * 100, 1) + '</strong></div>';
+  }
+  if (net) {
+    html += '<div><span>扣' + cost.toFixed(1) + '%后超额</span><strong>' + formatMetricPct(net.avg_excess_return_pct, 3) + '</strong></div>';
+    html += '<div><span>扣成本后累计</span><strong>' + formatMetricPct(net.compounded_return_pct, 2) + '</strong></div>';
+  }
+  html += '</div>';
+  html += '<div class="calibration-footnote">样本：' + escapeHtml(start) + ' 至 ' + escapeHtml(end) + '；仅作为模型校准，不构成买卖建议。</div>';
+  html += '</section>';
+  return html;
+}
+
+function renderKeyVariablesSection(snapshot) {
+  const variables = (snapshot.variables || []).filter(Boolean);
+  if (!variables.length) return '';
+  const groupNames = {
+    market: '市场',
+    sentiment: '情绪',
+    fund: '资金',
+    macro: '宏观',
+    annual: '年度',
+    policy: '政策',
+    weather: '天气',
+    incident: '事件',
+    risk: '风险'
+  };
+  let html = '<section class="key-variables-section">';
+  html += '<div class="section-header"><h2>关键变量</h2></div>';
+  html += '<div class="key-variable-grid">';
+  variables.slice(0, 12).forEach(item => {
+    const statusClass = item.status === 'ready' ? 'ready' : item.status === 'partial' ? 'partial' : 'pending';
+    html += '<div class="key-variable-card ' + statusClass + '">';
+    html += '<div class="key-variable-meta"><span>' + escapeHtml(groupNames[item.group] || item.group || '变量') + '</span><small>' + escapeHtml(item.source || '') + '</small></div>';
+    html += '<strong>' + escapeHtml(item.name || '-') + '</strong>';
+    html += '<p>' + escapeHtml(item.value || '待接入数据源') + '</p>';
+    html += '</div>';
+  });
+  html += '</div>';
+  html += '<p class="key-variable-note">资金、政策、天气和突发事件变量会按可用数据源动态补齐；实时源未返回时，系统会降低该变量权重，不把空值当成有效信号。</p>';
   html += '</section>';
   return html;
 }
@@ -983,6 +1206,66 @@ function renderGlobalMarketSection(globalIndexes) {
   return html;
 }
 
+function formatFlowYi(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '实时源未返回';
+  const yi = Number(value) / 100000000;
+  return (yi >= 0 ? '+' : '') + yi.toFixed(2) + '亿';
+}
+
+function hasNumericValue(value) {
+  return value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
+}
+
+function formatNorthboundDisplay(northbound) {
+  if (!northbound) return '净买入不再公开';
+  if (hasNumericValue(northbound.netInflow)) return formatFlowYi(northbound.netInflow);
+  if (hasNumericValue(northbound.dealAmountYi)) {
+    return '成交额' + Number(northbound.dealAmountYi).toFixed(2) + '亿';
+  }
+  return '净买入不再公开';
+}
+
+function formatNorthboundNote(northbound) {
+  if (!northbound || !hasNumericValue(northbound.dealAmountYi)) {
+    return '北向盘中净买入不再稳定公开，当前不把它作为强依赖变量。';
+  }
+  const parts = ['北向盘中净买入不再稳定公开，当前展示盘后成交活跃度'];
+  if (northbound.quotaBalanceText) parts.push(northbound.quotaBalanceText);
+  if (northbound.leadStockName) parts.push('活跃股：' + northbound.leadStockName);
+  if (northbound.date) parts.push('日期：' + northbound.date);
+  return parts.join('；') + '。';
+}
+
+function formatMomentumNames(rows) {
+  const names = (rows || []).slice(0, 3).map(function(item) { return item.name; }).filter(Boolean);
+  return names.length ? names.join('、') : '实时源未返回';
+}
+
+function renderMarketMomentumSection(momentum) {
+  const hasFlow = ['northbound', 'mainForce', 'etfFlow'].some(function(key) {
+    return hasNumericValue(momentum[key]?.netInflow);
+  }) || hasNumericValue(momentum.northbound?.dealAmountYi);
+  const hasLeaders = (momentum.mainForce?.leaders || []).length > 0 || (momentum.etfFlow?.leaders || []).length > 0;
+  const turnover = momentum.turnover && momentum.turnover.marketRate !== null && momentum.turnover.marketRate !== undefined
+    ? Number(momentum.turnover.marketRate).toFixed(2) + '%'
+    : '实时源未返回';
+  let html = '<section class="market-momentum-section">';
+  html += '<div class="section-header"><h2>资金动量</h2></div>';
+  html += '<div class="momentum-grid">';
+  html += '<div class="momentum-card"><span>北向资金</span><strong>' + escapeHtml(formatNorthboundDisplay(momentum.northbound)) + '</strong></div>';
+  html += '<div class="momentum-card"><span>主力净流入</span><strong>' + formatFlowYi(momentum.mainForce?.netInflow) + '</strong></div>';
+  html += '<div class="momentum-card"><span>ETF 流向</span><strong>' + formatFlowYi(momentum.etfFlow?.netInflow) + '</strong></div>';
+  html += '<div class="momentum-card"><span>市场换手</span><strong>' + turnover + '</strong></div>';
+  html += '</div>';
+  html += '<div class="momentum-note">主力活跃：' + escapeHtml(formatMomentumNames(momentum.mainForce?.leaders)) + '；ETF流向：' + escapeHtml(formatMomentumNames(momentum.etfFlow?.leaders)) + '</div>';
+  html += '<div class="momentum-note muted">' + escapeHtml(formatNorthboundNote(momentum.northbound)) + '</div>';
+  if (!hasFlow && !hasLeaders) {
+    html += '<div class="momentum-note muted">资金实时接口未返回有效值；当前结论会降权资金变量，暂以指数、市场宽度和行业强弱辅助判断。</div>';
+  }
+  html += '</section>';
+  return html;
+}
+
 function escapeHtml(text) {
   return String(text || '')
     .replace(/&/g, '&amp;')
@@ -1038,7 +1321,10 @@ function renderBaziInterpretation(interpretation) {
 function renderIndustrySection(industries) {
   let html = `
     <div class="industry-section">
-      <h2>行业因子推荐</h2>
+      <div class="section-header industry-section-header">
+        <h2>行业候选池</h2>
+        <span>按行业属性、资金与压力测试排序；优先看 Top5 分散组合</span>
+      </div>
       <div class="industry-grid">
   `;
 
@@ -1046,6 +1332,11 @@ function renderIndustrySection(industries) {
     const ratingClass = industry.rating >= 4 ? 'recommended' :
                        industry.rating <= 2 ? 'warning' : 'neutral';
     const stars = '★'.repeat(industry.rating || 3) + '☆'.repeat(5 - (industry.rating || 3));
+    const keyVars = (industry.key_variables || []).slice(0, 3).filter(Boolean);
+    const pressure = industry.pressure_test || {};
+    const pressureRisks = (pressure.active_risks || []).slice(0, 2).filter(Boolean);
+    const pressureText = pressureRisks.length > 0 ? pressureRisks.join('、') : (pressure.trigger_rule || '压力测试暂无触发项');
+    const pressureLevel = pressure.level || 'normal';
 
     // 渲染推荐标的
     let stocksHtml = '';
@@ -1069,6 +1360,8 @@ function renderIndustrySection(industries) {
           <span class="industry-rating">${stars}</span>
         </div>
         <div class="industry-element">主属性：<span class="element-${industry.element}">${industry.element_name || industry.element}</span>${industry.element_profile ? ` · 暴露：${industry.element_profile}` : ''}${industry.factor_score ? ` · 因子分：${industry.factor_score}` : ''}</div>
+        ${keyVars.length ? `<div class="industry-v21-meta"><strong>关键变量</strong><span>${keyVars.map(escapeHtml).join(' / ')}</span></div>` : ''}
+        ${pressure.level ? `<div class="industry-pressure pressure-${pressureLevel}"><strong>压力测试</strong><span>${escapeHtml(pressureText)}</span></div>` : ''}
         ${industry.reason ? `<div class="industry-reason">${industry.reason}</div>` : ''}
         ${stocksHtml}
       </div>

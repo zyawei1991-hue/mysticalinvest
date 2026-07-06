@@ -2,6 +2,10 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const { loadEnv } = require('./envLoader');
+
+loadEnv();
+
 const routes = require('./routes');
 const path = require('path');
 

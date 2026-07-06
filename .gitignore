@@ -13,6 +13,10 @@ cron.log
 frontend/backups/
 bin/llm.js
 
+# Generated reports, screenshots, browser profiles, and copied chat attachments.
+outputs/
+attachments/
+
 .env
 .env.*
 !.env.example

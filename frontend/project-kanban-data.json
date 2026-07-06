@@ -1,0 +1,342 @@
+{
+  "project_name": "五行投资日报项目看板",
+  "subtitle": "基于整体 BP 文档和飞书多维表待办的统一项目进展页",
+  "last_updated": "2026-07-06 16:54",
+  "overall_status": "in_progress",
+  "overall_progress": 72,
+  "current_focus": "免费实时数据源已接入第一阶段：东财全市场分页、ETF流向、换手、涨跌停、资金背离和 Open-Meteo 天气风险；Tushare 盘后兜底等待 token 续期。",
+  "public_links": [
+    {
+      "label": "日报首页",
+      "url": "./"
+    },
+    {
+      "label": "项目看板",
+      "url": "./project-kanban.html"
+    }
+  ],
+  "health": [
+    {
+      "label": "日报服务",
+      "value": "PM2 daily-report 在线",
+      "status": "good"
+    },
+    {
+      "label": "飞书推送",
+      "value": "当前群 webhook 已验证；等待下一次计划任务自然推送复核",
+      "status": "watch"
+    },
+    {
+      "label": "历史行情",
+      "value": "Tushare 本地缓存可复用",
+      "status": "good"
+    },
+    {
+      "label": "关键变量",
+      "value": "全市场资金/宽度/ETF/天气已可用；Tushare盘后兜底待续期",
+      "status": "watch"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "doing",
+      "title": "进行中",
+      "items": [
+        {
+          "title": "日报页面标题遮挡修复",
+          "owner": "前端",
+          "status": "in_progress",
+          "detail": "版本切换条改为非吸顶展示，正文增加顶部间距；需要桌面和移动端页面复核。"
+        },
+        {
+          "title": "下一次计划任务推送观察",
+          "owner": "系统",
+          "status": "in_progress",
+          "detail": "推送已切到当前群 webhook；等待计划任务验证无错群、无乱码、无旧应用身份二次推送。"
+        }
+      ]
+    },
+    {
+      "id": "review",
+      "title": "待确认",
+      "items": [
+        {
+          "title": "日报模板标准化",
+          "owner": "产品/内容",
+          "status": "review",
+          "detail": "早盘、午间、盘后模板已可生成；需要确认正文口径、风险提示和用户可读性。"
+        },
+        {
+          "title": "行业多属性评分工程化",
+          "owner": "策略/算法",
+          "status": "review",
+          "detail": "行业属性、资金状态、市场强弱和风险压力已进入排序；需继续用回测校准权重边界。"
+        },
+        {
+          "title": "历史决策日志入库",
+          "owner": "工程",
+          "status": "review",
+          "detail": "日报生成和回测链路已写入关键决策信息；后续确认字段是否满足复盘和审计。"
+        },
+        {
+          "title": "资金动量采集",
+          "owner": "数据",
+          "status": "review",
+          "detail": "实时资金源已接入但稳定性不足；缺值时降权，并补日频兜底源。"
+        },
+        {
+          "title": "流年修正自动化",
+          "owner": "策略",
+          "status": "review",
+          "detail": "年度节律修正已工程化；需要确认年度参数是否继续采用现有先验。"
+        },
+        {
+          "title": "关键变量追踪",
+          "owner": "数据/产品",
+          "status": "review",
+          "detail": "页面已展示变量状态；政策、天气、突发事件仍是待接入源。"
+        }
+      ]
+    },
+    {
+      "id": "done",
+      "title": "已完成",
+      "items": [
+        {
+          "title": "飞书推送切到当前群 webhook",
+          "owner": "工程",
+          "status": "completed",
+          "detail": "早盘日报已在当前群测试发送成功；旧应用身份推送已跳过。"
+        },
+        {
+          "title": "移动端八卦图恢复",
+          "owner": "前端",
+          "status": "completed",
+          "detail": "修复 768px 以下被隐藏的问题，真实移动视口验证无横向溢出。"
+        },
+        {
+          "title": "Tushare 历史行情缓存与回测",
+          "owner": "数据",
+          "status": "completed",
+          "detail": "已缓存 2021-01-01 至 2026-07-05 的行业代理和基准行情，回测产物已落本地。"
+        },
+        {
+          "title": "免费实时数据源第一阶段",
+          "owner": "数据",
+          "status": "completed",
+          "detail": "东财 delay/full 分页接入沪深A股5535只、ETF 800只；可计算宽度、主力、换手、ETF流向、涨跌停和资金背离。"
+        },
+        {
+          "title": "天气风险免费源",
+          "owner": "数据",
+          "status": "completed",
+          "detail": "Open-Meteo 已接入重点城市极端天气信号，并映射到电力、交通、农业等行业扰动。"
+        },
+        {
+          "title": "项目看板固定链接",
+          "owner": "协作",
+          "status": "completed",
+          "detail": "独立看板页面已上线，后续项目相关任务统一更新到固定链接。"
+        }
+      ]
+    },
+    {
+      "id": "backlog",
+      "title": "后续待办",
+      "items": [
+        {
+          "title": "补齐合规免责声明",
+          "owner": "合规",
+          "status": "pending",
+          "detail": "BP P0：明确内容仅供参考、不构成投资建议，并覆盖页面、推送卡片和分享材料。"
+        },
+        {
+          "title": "定义商业化产品边界",
+          "owner": "商业/产品",
+          "status": "pending",
+          "detail": "BP P0：区分免费日报、会员增强、B2B 服务和人工咨询边界。"
+        },
+        {
+          "title": "行业推荐回测一期",
+          "owner": "数据/策略",
+          "status": "pending",
+          "detail": "多维表 P1：把回测目标从胜率扩展到 Rank IC、Top5 超额、Top5-Bottom5 spread 和年度稳定性。"
+        },
+        {
+          "title": "Tushare token 续期",
+          "owner": "数据/账号",
+          "status": "pending",
+          "detail": "当前临时 token 已于 2026-07-06 11:37:05 过期，盘后 daily_basic、moneyflow、fund_daily、hk_hold 需要续期后继续缓存。"
+        },
+        {
+          "title": "会员权限方案设计",
+          "owner": "产品",
+          "status": "pending",
+          "detail": "多维表 P1：定义会员可见字段、历史回放、提醒频率和导出能力。"
+        },
+        {
+          "title": "商业化落地页设计",
+          "owner": "增长",
+          "status": "pending",
+          "detail": "多维表 P1：围绕日报价值、回测证据、使用边界和转化路径设计。"
+        },
+        {
+          "title": "种子用户测试计划",
+          "owner": "运营",
+          "status": "pending",
+          "detail": "多维表 P1：确定测试用户、反馈表、使用周期和留存指标。"
+        },
+        {
+          "title": "飞书日报推送商业化短卡",
+          "owner": "产品",
+          "status": "pending",
+          "detail": "多维表 P2：为群推送设计更短、更清晰的商业化版本卡片。"
+        },
+        {
+          "title": "B2B 版本需求访谈",
+          "owner": "商业",
+          "status": "pending",
+          "detail": "多维表 P2：访谈机构/投顾/社群运营方，确认团队版需求。"
+        },
+        {
+          "title": "内容审核工作流设计",
+          "owner": "合规/内容",
+          "status": "pending",
+          "detail": "多维表 P2：定义日报发布前后的人工复核、敏感词和版本留痕。"
+        }
+      ]
+    }
+  ],
+  "phases": [
+    {
+      "name": "P0 基础产品边界与核心能力",
+      "status": "in_progress",
+      "steps": [
+        {
+          "name": "合规免责声明",
+          "status": "pending"
+        },
+        {
+          "name": "商业化产品边界",
+          "status": "pending"
+        },
+        {
+          "name": "资金动量采集",
+          "status": "completed"
+        },
+        {
+          "name": "行业多属性权重工程化",
+          "status": "review"
+        },
+        {
+          "name": "流年修正自动化",
+          "status": "review"
+        },
+        {
+          "name": "关键变量追踪",
+          "status": "review"
+        }
+      ]
+    },
+    {
+      "name": "P1 闭环验证与商业准备",
+      "status": "in_progress",
+      "steps": [
+        {
+          "name": "日报模板标准化",
+          "status": "review"
+        },
+        {
+          "name": "历史决策日志入库",
+          "status": "review"
+        },
+        {
+          "name": "历史回测模块与行业推荐回测一期",
+          "status": "pending"
+        },
+        {
+          "name": "会员权限方案设计",
+          "status": "pending"
+        },
+        {
+          "name": "商业化落地页设计",
+          "status": "pending"
+        },
+        {
+          "name": "种子用户测试计划",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "name": "P2 商业化运营",
+      "status": "pending",
+      "steps": [
+        {
+          "name": "飞书日报推送商业化短卡",
+          "status": "pending"
+        },
+        {
+          "name": "B2B 版本需求访谈",
+          "status": "pending"
+        },
+        {
+          "name": "内容审核工作流设计",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "name": "工程基础与交付保障",
+      "status": "completed",
+      "steps": [
+        {
+          "name": "当前群 webhook 推送验证",
+          "status": "completed"
+        },
+        {
+          "name": "移动端八卦图与页面重构",
+          "status": "completed"
+        },
+        {
+          "name": "Tushare 历史行情缓存",
+          "status": "completed"
+        },
+        {
+          "name": "免费实时宽度/资金/ETF/天气源接入",
+          "status": "completed"
+        },
+        {
+          "name": "项目看板固定链接上线",
+          "status": "completed"
+        }
+      ]
+    }
+  ],
+  "recent_events": [
+    {
+      "time": "2026-07-06 16:54",
+      "text": "接入免费数据源第一阶段：东财全市场分页、ETF流向、换手、涨跌停、资金背离和 Open-Meteo 天气风险；Tushare token 已过期需续期。"
+    },
+    {
+      "time": "2026-07-06 13:26",
+      "text": "根据 BP 文档和飞书多维表待办重整看板：P0/P1/P2 分阶段展示，已落地但未确认的任务进入待确认。"
+    },
+    {
+      "time": "2026-07-06 13:20",
+      "text": "修复日报正文标题被顶部版本切换条遮挡的问题，并隐藏日报正文里的内部算法框架来源。"
+    },
+    {
+      "time": "2026-07-06 13:10",
+      "text": "资金和关键变量缺源时改为降权处理，并在页面说明后续补源方向。"
+    },
+    {
+      "time": "2026-07-06 09:45",
+      "text": "早盘日报通过当前群 webhook 测试发送成功。"
+    },
+    {
+      "time": "2026-07-05 23:30",
+      "text": "日报前端完成移动端重构，八卦图恢复显示。"
+    }
+  ]
+}

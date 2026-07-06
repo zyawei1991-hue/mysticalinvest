@@ -5,6 +5,7 @@
  */
 
 const https = require('https');
+const http = require('http');
 
 const APP_ID = process.env.FEISHU_APP_ID;
 const APP_SECRET = process.env.FEISHU_APP_SECRET;
@@ -30,6 +31,20 @@ function postJson(hostname, path, body, extraHeaders = {}) {
   });
 }
 
+function getJson(hostname, port, path) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({ hostname, port, path, method: 'GET' }, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 async function main() {
   const missing = [];
   if (!APP_ID) missing.push('FEISHU_APP_ID');
@@ -41,8 +56,19 @@ async function main() {
   }
 
   const reportType = process.argv[2] || 'morning';
-  const cardTitle = process.argv[3] || '五行投资日报';
-  const summary = process.argv[4] || '投资日报已生成，点击查看完整市场摘要、行业方向和关注标的。';
+  let cardTitle = process.argv[3] || '五行投资日报';
+  let summary = process.argv[4] || '';
+
+  if (!process.argv[3] || !process.argv[4]) {
+    try {
+      const report = await getJson('localhost', 3000, `/api/latest?type=${encodeURIComponent(reportType)}`);
+      cardTitle = process.argv[3] || `五行投资日报 ${report.report_date || ''}`;
+      summary = process.argv[4] || report.card_summary || summary;
+    } catch (e) {
+      console.warn(`[${reportType}] 读取本地日报摘要失败:`, e.message);
+    }
+  }
+  summary = summary || '投资日报已生成，点击查看完整市场摘要、行业方向和关注标的。';
 
   console.log(`[${reportType}] 获取飞书token...`);
   const tokenRes = await postJson('open.feishu.cn', '/open-apis/auth/v3/tenant_access_token/internal',

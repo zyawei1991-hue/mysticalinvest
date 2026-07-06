@@ -70,6 +70,10 @@ const industryStocks = {
  */
 
 const { Solar } = require('lunar-javascript');
+const {
+  getSwIndustryBucketsByElement,
+  scoreSwIndustries
+} = require('./swIndustryFramework');
 
 // ==================== 五行基础 ====================
 const fiveElements = {
@@ -203,50 +207,8 @@ const sihuaMeaning = {
   '左辅': { lu:'贵人相助、合作生财', quan:'合作主导、团队领导', ke:'团队声望、合作名誉', ji:'合作纠纷、被拖累' }
 };
 
-// A股板块五行映射V2（来源：13_riyun_sop.md，2026-06-09校验）
-const industryFiveElementsV2 = {
-  '木': ['造纸印刷','林业家具','中药医药','食品饮料','纺织服装','环保工程'],
-  '火': ['电力电网','光伏储能','军工国防','通信传媒','消费电子','计算机软件'],
-  '土': ['房地产开发','建筑工程','建材水泥','银行保险','农牧饲渔','煤炭采掘'],
-  '金': ['有色金属','钢铁冶炼','机械设备','汽车整车','银行保险','证券期货'],
-  '水': ['水务水利','酿酒白酒','港口航运','物流仓储','水产养殖','医药生物']
-};
-
-// 行业五行暴露系数 V2.1：每个行业由多属性加权构成，用于替代单一标签。
-const industryFactorExposureV21 = {
-  '电力电网': { '火': 0.45, '土': 0.20, '金': 0.15, '水': 0.15, '木': 0.05 },
-  '光伏储能': { '火': 0.40, '金': 0.22, '木': 0.18, '土': 0.12, '水': 0.08 },
-  '军工国防': { '金': 0.35, '火': 0.28, '土': 0.20, '水': 0.10, '木': 0.07 },
-  '通信传媒': { '火': 0.32, '木': 0.24, '金': 0.18, '水': 0.16, '土': 0.10 },
-  '消费电子': { '火': 0.30, '金': 0.28, '水': 0.16, '木': 0.14, '土': 0.12 },
-  '计算机软件': { '火': 0.30, '水': 0.25, '木': 0.20, '金': 0.15, '土': 0.10 },
-  '半导体': { '火': 0.32, '金': 0.30, '水': 0.16, '木': 0.12, '土': 0.10 },
-  '银行保险': { '土': 0.32, '金': 0.30, '水': 0.18, '火': 0.10, '木': 0.10 },
-  '证券期货': { '金': 0.32, '水': 0.25, '火': 0.18, '土': 0.15, '木': 0.10 },
-  '有色金属': { '金': 0.45, '火': 0.20, '土': 0.15, '水': 0.12, '木': 0.08 },
-  '钢铁冶炼': { '金': 0.42, '火': 0.26, '土': 0.18, '水': 0.08, '木': 0.06 },
-  '机械设备': { '金': 0.38, '火': 0.20, '土': 0.18, '木': 0.14, '水': 0.10 },
-  '汽车整车': { '金': 0.28, '火': 0.25, '土': 0.18, '木': 0.16, '水': 0.13 },
-  '房地产开发': { '土': 0.45, '金': 0.18, '水': 0.15, '木': 0.12, '火': 0.10 },
-  '建筑工程': { '土': 0.38, '木': 0.22, '金': 0.18, '水': 0.12, '火': 0.10 },
-  '建材水泥': { '土': 0.42, '金': 0.20, '火': 0.16, '木': 0.12, '水': 0.10 },
-  '煤炭采掘': { '土': 0.35, '火': 0.25, '金': 0.18, '水': 0.12, '木': 0.10 },
-  '农牧饲渔': { '木': 0.32, '土': 0.24, '水': 0.22, '火': 0.12, '金': 0.10 },
-  '造纸印刷': { '木': 0.42, '水': 0.22, '火': 0.16, '土': 0.12, '金': 0.08 },
-  '林业家具': { '木': 0.50, '土': 0.18, '火': 0.14, '水': 0.10, '金': 0.08 },
-  '中药医药': { '木': 0.35, '水': 0.22, '土': 0.18, '火': 0.15, '金': 0.10 },
-  '医药生物': { '水': 0.30, '木': 0.28, '土': 0.18, '火': 0.14, '金': 0.10 },
-  '食品饮料': { '木': 0.28, '土': 0.25, '火': 0.22, '水': 0.15, '金': 0.10 },
-  '纺织服装': { '木': 0.30, '火': 0.24, '土': 0.20, '水': 0.16, '金': 0.10 },
-  '环保工程': { '木': 0.30, '水': 0.30, '土': 0.18, '金': 0.12, '火': 0.10 },
-  '水务水利': { '水': 0.45, '土': 0.18, '木': 0.16, '金': 0.12, '火': 0.09 },
-  '酿酒白酒': { '水': 0.32, '火': 0.28, '土': 0.20, '木': 0.12, '金': 0.08 },
-  '港口航运': { '水': 0.45, '金': 0.20, '土': 0.15, '木': 0.12, '火': 0.08 },
-  '物流仓储': { '水': 0.32, '金': 0.24, '土': 0.20, '木': 0.14, '火': 0.10 },
-  '水产养殖': { '水': 0.44, '木': 0.22, '土': 0.16, '火': 0.10, '金': 0.08 }
-};
-
-const yearlyElementCorrection2026 = { '金': -0.15, '木': 0.05, '水': -0.10, '火': 0.25, '土': 0.05 };
+// A股板块五行映射V2.1：以申万31一级行业暴露表的主导因子自动分桶。
+const industryFiveElementsV2 = getSwIndustryBucketsByElement();
 
 // 四化→A股板块偏好（来源：13_riyun_sop.md Step 3）
 const sihuaSectorMap = {
@@ -1018,132 +980,169 @@ function getRecommendedIndustries(fiveCount) {
 }
 
 /**
- * 增强行业推荐 V2（升级版，结合实时涨停数据）
+ * 增强行业推荐 V2.1
+ * 主排序严格使用申万31行业五行暴露框架；二级/主题映射只用于补候选标的。
  */
 function getEnhancedIndustries(bazi, fiveCount, marketData) {
   marketData = marketData || {};
   const strengthInfo = analyzeMarketStrength(bazi, fiveCount);
   const favors = getMarketFavors(bazi, fiveCount, strengthInfo);
   const tenGodsResult = calculateTenGods(bazi);
-  const elementMap = { '金': 'gold', '木': 'wood', '水': 'water', '火': 'fire', '土': 'earth' };
-  const elementOrder = ['木', '火', '土', '金', '水'];
   const favorableElement = favors.favorableElement || fiveCount.dominant || '火';
-
-  const hs300Change = marketData.hs300Change || 0;
-  const isMarketDown = hs300Change < -1;
-  const isMarketStrong = hs300Change > 1;
 
   const upStocks = marketData.upStocks || [];
   const sectorKeywords = {
-    '银行': '金融', '证券': '金融', '有色': '有色金属', '煤': '能源',
-    '房': '房地产', '医': '医药生物', '芯': '半导体', '航': '军工',
-    '食': '食品饮料', '新能': '光伏', '传': '传媒', '机': '机械',
-    '软件': 'AI应用', '光': '光伏', '电': '电力', '5G': '通信',
-    '白酒': '白酒', '港': '港口', '运': '物流', '水': '水务水利'
+    '银行': '银行',
+    '证券': '非银金融',
+    '券商': '非银金融',
+    '保险': '非银金融',
+    '有色': '有色金属',
+    '铜': '有色金属',
+    '铝': '有色金属',
+    '煤': '煤炭',
+    '石油': '石油石化',
+    '油': '石油石化',
+    '化': '基础化工',
+    '房': '房地产',
+    '地产': '房地产',
+    '医': '医药生物',
+    '药': '医药生物',
+    '芯': '电子',
+    '半导体': '电子',
+    '电子': '电子',
+    '军': '国防军工',
+    '航': '国防军工',
+    '食': '食品饮料',
+    '酒': '食品饮料',
+    '新能': '电力设备',
+    '光伏': '电力设备',
+    '电池': '电力设备',
+    '储能': '电力设备',
+    '传': '传媒',
+    '游戏': '传媒',
+    '软件': '计算机',
+    'AI': '计算机',
+    '算力': '计算机',
+    '机': '机械设备',
+    '汽车': '汽车',
+    '车': '汽车',
+    '家电': '家用电器',
+    '建筑': '建筑装饰',
+    '建材': '建筑材料',
+    '水泥': '建筑材料',
+    '港': '交通运输',
+    '运': '交通运输',
+    '物流': '交通运输',
+    '电力': '公用事业',
+    '环保': '环保',
+    '纺织': '纺织服饰',
+    '零售': '商贸零售',
+    '旅游': '社会服务',
+    '美容': '美容护理'
   };
   const sectorCount = {};
   upStocks.forEach(s => {
     const name = s.name || '';
     for (const kw in sectorKeywords) {
       if (name.indexOf(kw) !== -1) {
-        const sec = sectorKeywords[kw];
-        sectorCount[sec] = (sectorCount[sec] || 0) + 1;
+        const sector = sectorKeywords[kw];
+        sectorCount[sector] = (sectorCount[sector] || 0) + 1;
         break;
       }
     }
   });
-  const realStrong = Object.entries(sectorCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(item => item[0]);
-  const realStrongSet = new Set(realStrong);
-
-  function getElementSignals() {
-    const rows = elementOrder.map(element => {
-      const raw = (fiveCount.count && fiveCount.count[element]) || 0;
-      const correction = yearlyElementCorrection2026[element] || 0;
-      let score = raw * (1 + correction);
-      if (element === favorableElement) score *= 1.15;
-      if (element === fiveCount.dominant) score *= 1.06;
-      return { element, score };
-    });
-    const total = rows.reduce((sum, item) => sum + item.score, 0) || 1;
-    const signals = {};
-    rows.forEach(item => { signals[item.element] = item.score / total; });
-    return signals;
-  }
-
-  function dominantElement(exposure) {
-    return Object.entries(exposure).sort((a, b) => b[1] - a[1])[0][0];
-  }
-
-  function formatExposure(exposure) {
-    return Object.entries(exposure)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([element, value]) => element + Math.round(value * 100) + '%')
-      .join(' / ');
-  }
+  const strongIndustries = Object.entries(sectorCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(item => item[0]);
 
   function getIndustryStocks(name) {
     if (industryStocks[name]) return industryStocks[name];
     const aliases = {
-      '机械设备': '机械',
-      '汽车整车': '汽车',
-      '煤炭采掘': '煤炭',
-      '有色金属': '有色金属',
-      '食品饮料': '食品',
-      '医药生物': '医药',
-      '建筑工程': '建筑',
-      '物流仓储': '物流'
+      '基础化工': '化工',
+      '石油石化': '煤炭',
+      '建筑材料': '建材',
+      '建筑装饰': '建筑',
+      '电力设备': '新能源',
+      '国防军工': '军工',
+      '家用电器': '家电',
+      '轻工制造': '造纸',
+      '纺织服饰': '纺织',
+      '美容护理': '消费',
+      '商贸零售': '消费',
+      '社会服务': '旅游',
+      '传媒': '传媒',
+      '计算机': '计算机',
+      '电子': '半导体',
+      '公用事业': '电力',
+      '交通运输': '物流',
+      '房地产': '房地产',
+      '银行': '银行',
+      '非银金融': '证券',
+      '环保': '环保',
+      '汽车': '汽车',
+      '煤炭': '煤炭',
+      '钢铁': '钢铁'
     };
     return industryStocks[aliases[name]] || [];
   }
 
-  const signals = getElementSignals();
-  const scored = Object.entries(industryFactorExposureV21).map(([name, exposure]) => {
-    const mainElement = dominantElement(exposure);
-    let score = elementOrder.reduce((sum, element) => sum + (exposure[element] || 0) * (signals[element] || 0), 0);
-    score += (exposure[favorableElement] || 0) * 0.12;
-    score += realStrongSet.has(name) ? 0.12 : 0;
-    score += isMarketStrong ? ((exposure['火'] || 0) + (exposure['金'] || 0)) * 0.05 : 0;
-    score -= isMarketDown ? ((exposure['火'] || 0) + (exposure['金'] || 0)) * 0.06 : 0;
-    let rating = 3;
-    if (score >= 0.34) rating = 5;
-    else if (score >= 0.28) rating = 4;
-    else if (score < 0.20) rating = 2;
+  const frameworkResult = scoreSwIndustries({
+    bazi,
+    fiveCount,
+    favorableElement,
+    dominantElement: fiveCount.dominant,
+    scenario: marketData.scenario || 'short_term',
+    marketData: { ...marketData, strongIndustries }
+  });
+
+  const scored = frameworkResult.industries.map(industry => {
+    const pressure = industry.pressure_test || {};
+    const riskText = pressure.level && pressure.level !== 'normal'
+      ? `压力测试${pressure.level}：${(pressure.active_risks || []).slice(0, 2).join('、')}`
+      : `关键变量：${(industry.key_variables || []).slice(0, 2).join('、')}`;
     const reasonParts = [
-      '多属性暴露：' + formatExposure(exposure),
-      '当日主因子' + favorableElement + '权重加成',
-      isMarketStrong ? '指数偏强，进攻因子加分' : (isMarketDown ? '指数承压，控制追高' : '指数中性，重视结构选择')
+      '属性暴露：' + industry.element_profile,
+      '周期：' + industry.current_cycle,
+      riskText
     ];
+    if (industry.market_adjustment > 0) reasonParts.push('盘中强势行业确认');
     return {
-      name,
-      element: elementMap[mainElement] || 'earth',
-      element_name: mainElement,
-      element_weights: exposure,
-      element_profile: formatExposure(exposure),
-      factor_score: Number((score * 100).toFixed(1)),
-      rating,
-      source: realStrongSet.has(name) ? 'factor_market' : 'factor',
+      ...industry,
+      source: industry.market_adjustment > 0 ? 'sw_v21_market_confirmed' : 'sw_v21',
       reason: reasonParts.join('；'),
-      stocks: getIndustryStocks(name)
+      stocks: getIndustryStocks(industry.name)
     };
-  }).sort((a, b) => b.factor_score - a.factor_score);
+  });
 
   const result = scored.slice(0, 6);
   const added = new Set(result.map(item => item.name));
 
-  // 十神辅助行业只作为补充，不覆盖主排序。
+  // 十神辅助行业只作为补充，不覆盖申万V2.1主排序。
   const monthGod = tenGodsResult['月柱'];
   if (monthGod) {
     const godIndustryMap = {
-      '正印': '医药生物', '偏印': '计算机软件', '食神': '食品饮料', '伤官': '消费电子',
-      '正官': '银行保险', '七杀': '军工国防', '正财': '有色金属', '偏财': '光伏储能',
-      '比肩': '汽车整车', '劫财': '机械设备'
+      '正印': '医药生物',
+      '偏印': '计算机',
+      '食神': '食品饮料',
+      '伤官': '传媒',
+      '正官': '银行',
+      '七杀': '国防军工',
+      '正财': '有色金属',
+      '偏财': '电力设备',
+      '比肩': '汽车',
+      '劫财': '机械设备'
     };
     const godIndustry = godIndustryMap[monthGod.god];
     if (godIndustry && !added.has(godIndustry)) {
       const extra = scored.find(item => item.name === godIndustry);
       if (extra) {
-        result.push({ ...extra, rating: Math.max(3, extra.rating - 1), source: 'god', reason: extra.reason + '；月令' + monthGod.god + '辅助确认' });
+        result.push({
+          ...extra,
+          rating: Math.max(3, extra.rating - 1),
+          source: 'sw_v21_god_confirmed',
+          reason: extra.reason + '；月令' + monthGod.god + '辅助确认'
+        });
         added.add(godIndustry);
       }
     }

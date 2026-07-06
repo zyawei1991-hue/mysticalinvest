@@ -1,0 +1,480 @@
+:root {
+  --bg: #eef2f6;
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --border: #dbe3ec;
+  --text: #101828;
+  --muted: #5f6f85;
+  --faint: #8a99ad;
+  --blue: #2563eb;
+  --blue-bg: #eff6ff;
+  --green: #079455;
+  --green-bg: #ecfdf3;
+  --amber: #b54708;
+  --amber-bg: #fffaeb;
+  --red: #d92d20;
+  --red-bg: #fef3f2;
+  --shadow: 0 16px 45px rgba(15, 23, 42, 0.08);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.page-shell {
+  width: min(1180px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 28px 0 42px;
+}
+
+.hero,
+.progress-panel,
+.lane,
+.phase-card,
+.events-panel,
+.links-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 30px 34px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+h1, h2, h3, p { margin-top: 0; }
+
+h1 {
+  margin-bottom: 10px;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.1;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-size: 20px;
+}
+
+h3 {
+  margin-bottom: 0;
+  font-size: 16px;
+}
+
+.subtitle,
+.section-head p,
+.focus-text,
+.item-detail,
+.phase-step span,
+.event-list,
+.link-list {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.hero-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.quiet-link {
+  color: var(--blue);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: var(--surface-soft);
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr);
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.progress-panel {
+  padding: 22px;
+}
+
+.panel-label {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.progress-row strong {
+  font-size: 42px;
+  line-height: 1;
+}
+
+.progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef6;
+  margin: 18px 0 14px;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--blue);
+  transition: width 0.45s ease;
+}
+
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.health-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 18px;
+}
+
+.health-card strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin: 30px 0 14px;
+}
+
+.section-head p {
+  margin-bottom: 0;
+  text-align: right;
+  font-size: 13px;
+}
+
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.lane {
+  padding: 14px;
+  min-width: 0;
+}
+
+.lane-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.lane-count {
+  color: var(--muted);
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.task-card {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  margin-bottom: 10px;
+}
+
+.task-card:last-child {
+  margin-bottom: 0;
+}
+
+.task-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.item-detail {
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.owner {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-pill.completed,
+.status-pill.good {
+  color: var(--green);
+  background: var(--green-bg);
+}
+
+.status-pill.in_progress {
+  color: var(--blue);
+  background: var(--blue-bg);
+}
+
+.status-pill.review,
+.status-pill.watch,
+.status-pill.pending {
+  color: var(--amber);
+  background: var(--amber-bg);
+}
+
+.status-pill.failed {
+  color: var(--red);
+  background: var(--red-bg);
+}
+
+.phase-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.phase-card {
+  padding: 18px;
+}
+
+.phase-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.phase-steps {
+  border-left: 1px solid var(--border);
+  margin-left: 7px;
+  padding-left: 16px;
+}
+
+.phase-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--faint);
+  flex: 0 0 auto;
+}
+
+.dot.completed { background: var(--green); }
+.dot.in_progress { background: var(--blue); animation: pulse 1.6s ease-in-out infinite; }
+.dot.review,
+.dot.pending { background: var(--amber); }
+.dot.failed { background: var(--red); }
+
+.bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  gap: 14px;
+  margin-top: 30px;
+}
+
+.events-panel,
+.links-panel {
+  padding: 20px;
+}
+
+.event {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+}
+
+.event:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.event-time {
+  color: var(--faint);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.link-list a {
+  display: block;
+  color: var(--blue);
+  text-decoration: none;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.link-list a:last-child { border-bottom: 0; }
+
+.error {
+  padding: 20px;
+  background: var(--red-bg);
+  border: 1px solid #fecdca;
+  color: var(--red);
+  border-radius: 10px;
+  margin-top: 18px;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (max-width: 900px) {
+  .summary-grid,
+  .bottom-grid,
+  .phase-list {
+    grid-template-columns: 1fr;
+  }
+
+  .kanban-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .page-shell {
+    width: 100%;
+    padding: 0 0 28px;
+  }
+
+  .hero,
+  .progress-panel,
+  .lane,
+  .phase-card,
+  .events-panel,
+  .links-panel {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    box-shadow: none;
+  }
+
+  .hero {
+    flex-direction: column;
+    padding: 24px 18px;
+  }
+
+  .hero-meta {
+    align-items: flex-start;
+  }
+
+  .summary-grid,
+  .kanban-board,
+  .phase-list,
+  .bottom-grid {
+    gap: 10px;
+  }
+
+  .kanban-board {
+    grid-template-columns: 1fr;
+  }
+
+  .section-head {
+    padding: 0 18px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .section-head p {
+    text-align: left;
+  }
+
+  .health-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-grid {
+    margin-top: 10px;
+  }
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.page-shell,
+.hero,
+.summary-grid,
+.health-grid,
+.kanban-board,
+.phase-list,
+.bottom-grid,
+.task-card,
+.health-card,
+.progress-panel,
+.lane,
+.phase-card,
+.events-panel,
+.links-panel {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.subtitle,
+.focus-text,
+.item-detail,
+.health-card p,
+.event,
+.phase-step span,
+.owner {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

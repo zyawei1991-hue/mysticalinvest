@@ -47,8 +47,14 @@ Invoke-Logged -FilePath 'node' -Arguments @('..\bin\daily-auto-generate.js')
 $generateExit = $script:LastCommandExitCode
 
 if ($generateExit -eq 0) {
+  if ($env:FEISHU_WEBHOOK_ENABLED -eq '1') {
+    Write-LogLine '=== webhook push handled by daily-auto-generate, skip app identity push ==='
+    Write-LogLine "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz') done ==="
+    exit 0
+  }
+
   $hour = [int](Get-Date -Format 'HH')
-  if ($hour -ge 9 -and $hour -lt 10) {
+  if ($hour -lt 11) {
     $reportType = 'morning'
   } elseif ($hour -ge 11 -and $hour -lt 14) {
     $reportType = 'noon'

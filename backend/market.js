@@ -10,6 +10,17 @@ const http = require('http');
 const https = require('https');
 const iconv = require('iconv-lite');
 
+const A_SHARE_FS = 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23';
+const ETF_FS = 'b:MK0021,b:MK0022,b:MK0023,b:MK0024';
+const EASTMONEY_PAGE_SIZE = Number(process.env.EASTMONEY_PAGE_SIZE || 100);
+const EASTMONEY_MAX_PAGES = Number(process.env.EASTMONEY_MAX_PAGES || 80);
+const EASTMONEY_SNAPSHOT_TTL_MS = Number(process.env.EASTMONEY_SNAPSHOT_TTL_MS || 120000);
+const EASTMONEY_PUSH2_HOSTS = (process.env.EASTMONEY_PUSH2_HOSTS || 'https://push2delay.eastmoney.com,https://push2.eastmoney.com')
+  .split(',')
+  .map(item => item.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+let eastmoneyRealtimeCache = null;
+
 // ─────────────────────────────────────────────
 // 工具：发 HTTPS POST 请求
 // ─────────────────────────────────────────────
@@ -40,6 +51,220 @@ function httpsPost(url, headers, body) {
     req.write(postData);
     req.end();
   });
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function httpsGetJsonOnce(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = https.request({
+      hostname: u.hostname,
+      port: 443,
+      path: u.pathname + u.search,
+      method: 'GET',
+      timeout: Number(options.timeout || process.env.EASTMONEY_TIMEOUT_MS || 15000),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+        'Referer': 'https://quote.eastmoney.com/',
+        'Accept': 'application/json,text/plain,*/*',
+        ...(options.headers || {})
+      }
+    }, (res) => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf8');
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          reject(new Error(`${res.statusCode} ${res.statusMessage}: ${text.slice(0, 200)}`));
+          return;
+        }
+        try { resolve(JSON.parse(text)); }
+        catch (e) { reject(new Error(`JSON parse failed: ${e.message}; body=${text.slice(0, 200)}`)); }
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('request timeout')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+async function httpsGetJson(url, options = {}) {
+  const retries = Number(options.retries ?? process.env.EASTMONEY_RETRIES ?? 2);
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await httpsGetJsonOnce(url, options);
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) await sleep(600 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined || value === '' || value === '-' || value === '--') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function isFiniteNumber(value) {
+  return Number.isFinite(Number(value));
+}
+
+function eastmoneyMarketPrefix(code) {
+  if (!code) return '';
+  return String(code).startsWith('6') || String(code).startsWith('5') || String(code).startsWith('9') ? 'SH' : 'SZ';
+}
+
+function normalizeEastmoneyRow(row) {
+  const code = String(row.f12 || '').trim();
+  const amount = toNumber(row.f6);
+  const turnoverRate = toNumber(row.f8);
+  const mainNetInflow = toNumber(row.f62);
+  return {
+    code,
+    ts_code: code ? `${code}.${eastmoneyMarketPrefix(code)}` : '',
+    name: String(row.f14 || '').trim(),
+    price: toNumber(row.f2),
+    changePercent: toNumber(row.f3),
+    amount,
+    turnoverRate,
+    mainNetInflow,
+    mainNetRatio: toNumber(row.f184),
+    raw: row
+  };
+}
+
+async function fetchEastmoneyClistPages(fs, options = {}) {
+  const pageSize = Number(options.pageSize || EASTMONEY_PAGE_SIZE);
+  const maxPages = Number(options.maxPages || EASTMONEY_MAX_PAGES);
+  const fields = options.fields || 'f12,f14,f2,f3,f6,f8,f62,f184';
+  const fid = options.fid || 'f62';
+  const rows = [];
+
+  for (let page = 1; page <= maxPages; page++) {
+    const query = new URLSearchParams({
+      pn: String(page),
+      pz: String(pageSize),
+      po: options.po || '1',
+      np: '1',
+      fltt: '2',
+      invt: '2',
+      fid,
+      fs,
+      fields
+    }).toString();
+    let json;
+    let lastError;
+    for (const host of EASTMONEY_PUSH2_HOSTS) {
+      try {
+        json = await httpsGetJson(`${host}/api/qt/clist/get?${query}`);
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!json) throw lastError;
+    const batch = json.data?.diff || [];
+    rows.push(...batch.map(normalizeEastmoneyRow).filter(row => row.name || row.code));
+    const total = Number(json.data?.total || 0);
+    if (!batch.length) break;
+    if (total > 0) {
+      if (rows.length >= total) break;
+    } else if (batch.length < pageSize) {
+      break;
+    }
+  }
+
+  return rows;
+}
+
+function summarizeRealtimeRows(rows) {
+  const validRows = rows.filter(row => isFiniteNumber(row.changePercent));
+  const up = validRows.filter(row => Number(row.changePercent) > 0).length;
+  const down = validRows.filter(row => Number(row.changePercent) < 0).length;
+  const flat = validRows.filter(row => Number(row.changePercent) === 0).length;
+  const amountRows = rows.filter(row => isFiniteNumber(row.amount) && Number(row.amount) > 0);
+  const totalAmount = amountRows.reduce((sum, row) => sum + Number(row.amount), 0);
+  const weightedTurnover = totalAmount > 0
+    ? amountRows.reduce((sum, row) => sum + ((Number(row.turnoverRate) || 0) * Number(row.amount)), 0) / totalAmount
+    : null;
+  const flowRows = rows.filter(row => isFiniteNumber(row.mainNetInflow));
+  const mainNetInflow = flowRows.reduce((sum, row) => sum + Number(row.mainNetInflow), 0);
+
+  return {
+    total: validRows.length,
+    up,
+    down,
+    flat,
+    totalAmount,
+    turnoverRate: weightedTurnover,
+    mainNetInflow,
+    leaders: flowRows
+      .filter(row => Number(row.mainNetInflow) > 0)
+      .sort((a, b) => Number(b.mainNetInflow) - Number(a.mainNetInflow))
+      .slice(0, 10),
+    turnoverLeaders: amountRows
+      .filter(row => isFiniteNumber(row.turnoverRate))
+      .sort((a, b) => Number(b.turnoverRate) - Number(a.turnoverRate))
+      .slice(0, 10)
+  };
+}
+
+async function fetchEastmoneyRealtimeSnapshot(force = false) {
+  const now = Date.now();
+  if (!force && eastmoneyRealtimeCache && now - eastmoneyRealtimeCache.fetchedAt < EASTMONEY_SNAPSHOT_TTL_MS) {
+    return eastmoneyRealtimeCache.snapshot;
+  }
+
+  const aShareRows = await fetchEastmoneyClistPages(A_SHARE_FS, { fid: 'f62' });
+  const etfRows = await fetchEastmoneyClistPages(ETF_FS, { fid: 'f62', maxPages: 8 });
+  const snapshot = {
+    asOf: new Date().toISOString(),
+    source: 'eastmoney-push2-full',
+    aShare: summarizeRealtimeRows(aShareRows),
+    etf: summarizeRealtimeRows(etfRows),
+    aShareRows,
+    etfRows
+  };
+  eastmoneyRealtimeCache = { fetchedAt: now, snapshot };
+  return snapshot;
+}
+
+async function fetchEastmoneyNorthbound() {
+  const query = new URLSearchParams({
+    fields1: 'f1,f2,f3,f4',
+    fields2: 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63'
+  }).toString();
+  let json;
+  let lastError;
+  for (const host of EASTMONEY_PUSH2_HOSTS) {
+    try {
+      json = await httpsGetJson(`${host}/api/qt/kamt/get?${query}`);
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!json) throw lastError;
+  const data = json.data || {};
+  const legs = ['hk2sh', 'hk2sz'].map(key => data[key]).filter(Boolean);
+  if (!legs.length) return null;
+  const hasEffectiveValue = legs.some(leg =>
+    isFiniteNumber(leg.netBuyAmt) && Number(leg.netBuyAmt) !== 0 ||
+    isFiniteNumber(leg.dayNetAmtIn) && Number(leg.dayNetAmtIn) !== 0
+  );
+  if (!hasEffectiveValue) return null;
+  const netWan = legs.reduce((sum, leg) => sum + (Number(leg.netBuyAmt ?? leg.dayNetAmtIn) || 0), 0);
+  return {
+    netInflow: netWan * 10000,
+    source: 'eastmoney-kamt',
+    date: legs[0].date2 || legs[0].date || ''
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -168,6 +393,22 @@ async function getGlobalIndexData() {
 // ─────────────────────────────────────────────
 async function getMarketBreadth() {
   try {
+    const snapshot = await fetchEastmoneyRealtimeSnapshot();
+    if (snapshot.aShare.total > 0) {
+      return {
+        up: snapshot.aShare.up,
+        down: snapshot.aShare.down,
+        flat: snapshot.aShare.flat,
+        total: snapshot.aShare.total,
+        source: snapshot.source,
+        asOf: snapshot.asOf
+      };
+    }
+  } catch (e) {
+    console.warn('东财全市场分页获取涨跌家数失败:', e.message);
+  }
+
+  try {
     const data = await queryEastmoney('今日A股市场上涨家数、下跌家数、平盘家数');
     if (!data || !data.dataTableDTOList || data.dataTableDTOList.length === 0) {
       return { up: 0, down: 0, flat: 0 };
@@ -199,6 +440,29 @@ async function getMarketBreadth() {
 // 3. 获取涨跌幅较大的板块（东财妙想API）
 // ─────────────────────────────────────────────
 async function getLimitStocks() {
+  try {
+    const snapshot = await fetchEastmoneyRealtimeSnapshot();
+    const rows = snapshot.aShareRows || [];
+    if (rows.length) {
+      return {
+        up: rows
+          .filter(row => Number(row.changePercent) >= 9.5)
+          .sort((a, b) => Number(b.changePercent) - Number(a.changePercent))
+          .slice(0, 30)
+          .map(row => ({ name: row.name, code: row.code, change: row.changePercent })),
+        down: rows
+          .filter(row => Number(row.changePercent) <= -9.5)
+          .sort((a, b) => Number(a.changePercent) - Number(b.changePercent))
+          .slice(0, 30)
+          .map(row => ({ name: row.name, code: row.code, change: row.changePercent })),
+        source: snapshot.source,
+        asOf: snapshot.asOf
+      };
+    }
+  } catch (e) {
+    console.warn('东财全市场分页获取涨跌停失败:', e.message);
+  }
+
   try {
     const data = await queryEastmoney('今日A股涨停板块和跌停板块，涨幅超7%的个股名称');
     if (!data || !data.dataTableDTOList) return { up: [], down: [] };
@@ -238,6 +502,25 @@ async function getLimitStocks() {
 // ─────────────────────────────────────────────
 async function getMoneyFlowDivergence() {
   try {
+    const snapshot = await fetchEastmoneyRealtimeSnapshot();
+    const rows = (snapshot.aShareRows || [])
+      .filter(row => Number(row.mainNetInflow) > 0 && Number(row.changePercent) < 0)
+      .sort((a, b) => Number(b.mainNetInflow) - Number(a.mainNetInflow))
+      .slice(0, 20)
+      .map(row => ({
+        name: row.name,
+        code: row.code,
+        close: row.price,
+        change: row.changePercent,
+        mainNetInflow: row.mainNetInflow,
+        source: snapshot.source
+      }));
+    if (rows.length) return rows;
+  } catch (e) {
+    console.warn('东财全市场分页获取资金背离失败:', e.message);
+  }
+
+  try {
     const data = await queryEastmoney('今日A股主力资金净流入前10名，包含涨跌幅');
     if (!data || !data.dataTableDTOList) return [];
 
@@ -266,6 +549,209 @@ async function getMoneyFlowDivergence() {
     console.warn('获取资金背离数据失败:', e.message);
     return [];
   }
+}
+
+function extractFirstNumberByName(data, keywords) {
+  if (!data || !data.dataTableDTOList) return null;
+  const keywordList = Array.isArray(keywords) ? keywords : [keywords];
+
+  for (const item of data.dataTableDTOList) {
+    const nameMap = item.nameMap || {};
+    const table = item.table || {};
+    for (const [code, name] of Object.entries(nameMap)) {
+      if (code === 'headName' || code === 'headNameSub') continue;
+      if (!keywordList.some(keyword => String(name || '').includes(keyword))) continue;
+      const value = parseValue(table[code]?.[0]);
+      if (value !== null) return value;
+    }
+  }
+  return null;
+}
+
+function getTopRows(data, maxRows) {
+  if (!data || !data.dataTableDTOList) return [];
+  return data.dataTableDTOList.slice(0, maxRows).map(item => {
+    const row = { name: (item.entityName || '').replace(/\(.*\)/, '').trim(), code: item.code || '' };
+    const nameMap = item.nameMap || {};
+    const table = item.table || {};
+    for (const [code, name] of Object.entries(nameMap)) {
+      if (code === 'headName' || code === 'headNameSub') continue;
+      const label = String(name || '');
+      const value = parseValue(table[code]?.[0]);
+      if (value === null) continue;
+      if (label.includes('主力净流入') || label.includes('净流入') || label.includes('主力净额')) row.mainNetInflow = value;
+      else if (label.includes('涨跌幅') || label.includes('涨幅')) row.changePercent = value;
+      else if (label.includes('换手')) row.turnoverRate = value;
+      else if (label.includes('成交额')) row.amount = value;
+    }
+    return row;
+  }).filter(row => row.name || row.code);
+}
+
+function describeFlow(value) {
+  if (value === null || value === undefined) return '实时源未返回';
+  const yi = value / 100000000;
+  return `${yi >= 0 ? '+' : ''}${yi.toFixed(2)}亿`;
+}
+
+function formatNorthboundActivity(northbound) {
+  if (!northbound || !isFiniteNumber(northbound.dealAmount)) return '实时净买入不再公开';
+  const dealYi = Number(northbound.dealAmount) / 100;
+  const parts = [`成交额${dealYi.toFixed(2)}亿`];
+  if (northbound.quotaBalanceText) parts.push(northbound.quotaBalanceText);
+  if (northbound.leadStockName) parts.push(`活跃股：${northbound.leadStockName}`);
+  return parts.join('，');
+}
+
+async function fetchEastmoneyNorthboundDailyStats() {
+  const query = new URLSearchParams({
+    sortTypes: '-1',
+    sortColumns: 'TRADE_DATE',
+    source: 'WEB',
+    client: 'WEB',
+    reportName: 'RPT_MUTUAL_DEALAMT',
+    columns: 'ALL',
+    pageNumber: '1',
+    pageSize: '5'
+  }).toString();
+  const url = `https://datacenter-web.eastmoney.com/web/api/data/v1/get?${query}`;
+  const json = await httpsGetJson(url, {
+    headers: {
+      Referer: 'https://data.eastmoney.com/hsgt/hsgtV2.html'
+    }
+  });
+  const row = json.result?.data?.[0];
+  if (!row) return null;
+  return {
+    netInflow: null,
+    disclosure: 'net_buy_unavailable_after_2024_disclosure_change',
+    source: 'eastmoney-mutual-dealamt',
+    date: String(row.TRADE_DATE || '').slice(0, 10),
+    dealAmount: toNumber(row.NF_DEAL_AMT),
+    dealAmountYi: isFiniteNumber(row.NF_DEAL_AMT) ? Number(row.NF_DEAL_AMT) / 100 : null,
+    shDealAmountYi: isFiniteNumber(row.SSC_DEAL_AMT) ? Number(row.SSC_DEAL_AMT) / 100 : null,
+    szDealAmountYi: isFiniteNumber(row.ST_DEAL_AMT) ? Number(row.ST_DEAL_AMT) / 100 : null,
+    dealNum: (Number(row.SSC_DEAL_NUM || 0) || 0) + (Number(row.ST_DEAL_NUM || 0) || 0),
+    quotaBalanceText: row.NF_QUOTA_BALANCE || row.SSC_QUOTA_BALANCE || row.ST_QUOTA_BALANCE || '',
+    leadStockName: row.NF_LEAD_STOCKS || row.SSC_LEAD_STOCKS || row.ST_LEAD_STOCKS || '',
+    leadStockCode: row.NF_LEAD_STOCKSCODE || row.SSC_LEAD_STOCKSCODE || row.ST_LEAD_STOCKSCODE || '',
+    leadStockChange: toNumber(row.NF_CHANGE_RATE ?? row.SSC_CHANGE_RATE ?? row.ST_CHANGE_RATE),
+    note: '公开渠道保留成交额/活跃股，盘中净买入、买卖额不再稳定披露'
+  };
+}
+
+async function fetchEastmoneyFlowList(fs, limit) {
+  const url = 'https://push2.eastmoney.com/api/qt/clist/get?' + new URLSearchParams({
+    pn: '1',
+    pz: String(limit || 10),
+    po: '1',
+    np: '1',
+    fltt: '2',
+    invt: '2',
+    fid: 'f62',
+    fs,
+    fields: 'f12,f14,f3,f6,f8,f62'
+  }).toString();
+  const json = await httpsGetJson(url);
+  const rows = json.data?.diff || [];
+  return rows.map(row => ({
+    code: row.f12,
+    name: row.f14,
+    changePercent: Number(row.f3),
+    amount: Number(row.f6),
+    turnoverRate: Number(row.f8),
+    mainNetInflow: Number(row.f62)
+  })).filter(row => row.name || row.code);
+}
+
+// 资金动量：北向、主力净流入、ETF 流向、换手率，供日报与回测复用。
+async function getMarketMomentum() {
+  const result = {
+    asOf: new Date().toISOString(),
+    northbound: { netInflow: null, source: 'eastmoney-kamt' },
+    mainForce: { netInflow: null, leaders: [], source: 'eastmoney-push2-full' },
+    etfFlow: { netInflow: null, leaders: [], source: 'eastmoney-push2-etf' },
+    turnover: { marketRate: null, active: [], source: 'eastmoney-push2-full' },
+    summary: ''
+  };
+
+  try {
+    const northbound = await fetchEastmoneyNorthbound();
+    if (northbound) {
+      result.northbound = northbound;
+    } else {
+      throw new Error('eastmoney-kamt returned no effective northbound value');
+    }
+  } catch (e) {
+    try {
+      const data = await queryEastmoney('今日北向资金净流入金额，沪股通深股通合计');
+      result.northbound.netInflow = extractFirstNumberByName(data, ['北向资金净流入', '净流入', '资金净额']);
+      result.northbound.source = 'eastmoney-mx';
+    } catch (fallbackError) {
+      try {
+        const activity = await fetchEastmoneyNorthboundDailyStats();
+        if (activity) {
+          result.northbound = activity;
+        } else {
+          result.northbound.error = 'northbound realtime net buy unavailable; daily activity unavailable';
+        }
+      } catch (activityError) {
+        result.northbound.error = `northbound realtime net buy unavailable; daily activity fallback failed: ${activityError.message}`;
+      }
+    }
+  }
+
+  try {
+    const snapshot = await fetchEastmoneyRealtimeSnapshot();
+    result.asOf = snapshot.asOf;
+    result.mainForce.leaders = snapshot.aShare.leaders.slice(0, 5);
+    result.mainForce.netInflow = snapshot.aShare.mainNetInflow;
+    result.mainForce.sampleSize = snapshot.aShare.total;
+  } catch (e) {
+    try {
+      const data = await queryEastmoney('今日A股主力资金净流入前10名，包含涨跌幅和换手率');
+      result.mainForce.netInflow = extractFirstNumberByName(data, ['主力净流入', '主力净额', '净流入']);
+      result.mainForce.leaders = getTopRows(data, 5);
+    } catch (fallbackError) {
+      result.mainForce.error = `${e.message}; fallback: ${fallbackError.message}`;
+    }
+  }
+
+  try {
+    const snapshot = await fetchEastmoneyRealtimeSnapshot();
+    result.etfFlow.leaders = snapshot.etf.leaders.slice(0, 5);
+    result.etfFlow.netInflow = snapshot.etf.mainNetInflow;
+    result.etfFlow.sampleSize = snapshot.etf.total;
+  } catch (e) {
+    try {
+      const data = await queryEastmoney('今日ETF资金净流入前10，股票ETF行业ETF宽基ETF');
+      result.etfFlow.netInflow = extractFirstNumberByName(data, ['净流入', '资金净额', '主力净流入']);
+      result.etfFlow.leaders = getTopRows(data, 5);
+    } catch (fallbackError) {
+      result.etfFlow.error = `${e.message}; fallback: ${fallbackError.message}`;
+    }
+  }
+
+  try {
+    const snapshot = await fetchEastmoneyRealtimeSnapshot();
+    result.turnover.active = snapshot.aShare.turnoverLeaders.slice(0, 5);
+    result.turnover.marketRate = snapshot.aShare.turnoverRate;
+    result.turnover.sampleSize = snapshot.aShare.total;
+  } catch (e) {
+    try {
+      const data = await queryEastmoney('今日A股换手率，换手率最高前10行业和个股');
+      result.turnover.marketRate = extractFirstNumberByName(data, ['换手率', '换手']);
+      result.turnover.active = getTopRows(data, 5);
+    } catch (fallbackError) {
+      result.turnover.error = `${e.message}; fallback: ${fallbackError.message}`;
+    }
+  }
+
+  const leaders = result.mainForce.leaders.slice(0, 3).map(item => item.name).filter(Boolean).join('、') || '实时源未返回';
+  const etfs = result.etfFlow.leaders.slice(0, 3).map(item => item.name).filter(Boolean).join('、') || '实时源未返回';
+  const northboundText = result.northbound.dealAmount ? formatNorthboundActivity(result.northbound) : describeFlow(result.northbound.netInflow);
+  result.summary = `北向${northboundText}，主力${describeFlow(result.mainForce.netInflow)}，ETF${describeFlow(result.etfFlow.netInflow)}；主力活跃：${leaders}；ETF流向：${etfs}`;
+  return result;
 }
 
 // ─────────────────────────────────────────────
@@ -466,6 +952,9 @@ module.exports = {
   getMarketBreadth,
   getLimitStocks,
   getMoneyFlowDivergence,
+  getMarketMomentum,
   getStockQuote,
   queryEastmoney,
+  fetchEastmoneyRealtimeSnapshot,
+  fetchEastmoneyNorthboundDailyStats,
 };

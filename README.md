@@ -96,6 +96,52 @@ server {
 | DELETE | `/api/reports/:date` | 删除日报 |
 | GET | `/api/stats` | 获取统计信息 |
 
+## 历史回测
+
+推荐数据源顺序：
+
+1. `tushare`：生产回测主源，需要配置 `TUSHARE_TOKEN`。
+2. `baostock`：免费源，但当前运行机需要先安装 Python 和 `baostock`。
+3. `akshare`：补充源，适合临时取数，不建议作为唯一生产源。
+4. `eastmoney`：仅作为 smoke fallback，没有 SLA。
+
+先缓存行业代理和基准历史日线：
+
+```bash
+node bin/cache-history.js --start 2024-01-01 --end 2026-07-05 --provider tushare --refresh
+```
+
+运行一次行业框架 V2.1 回测：
+
+```bash
+node bin/backtest-v21.js --start 2026-06-01 --end 2026-06-30 --provider tushare --top 1,3,5 --horizon 1,3,5,10
+```
+
+生成投资者视角有效性报告：
+
+```bash
+node bin/investor-backtest-report.js --run 4 --cost-bps 10
+```
+
+生成行业排序 Alpha 诊断报告：
+
+```bash
+node bin/alpha-diagnostics.js --start 2021-01-01 --end 2026-06-19 --provider tushare --horizon 1,3,5,10
+```
+
+检查当前数据源可用性：
+
+```bash
+node bin/backtest-v21.js --status
+```
+
+回测输出：
+
+- SQLite 表：`historical_daily_bars`、`backtest_runs`、`backtest_signals`、`backtest_returns`
+- 文件：`outputs/backtests/cache-history-*.json`、`outputs/backtests/backtest-*.json`、`outputs/backtests/backtest-trades-*.csv`、`outputs/backtests/investor-backtest-report-*.md`、`outputs/backtests/alpha-diagnostics-report-*.md`
+
+说明：`TUSHARE_API_URL` 可配置为官方地址或临时代理地址；token 只放本地 `.env`，不要提交。回测按“收盘信号，下一交易日开盘入场”口径计算；如果要评估早盘/午盘日报，需要补分钟级或盘中快照数据。
+
 ### 创建日报示例（POST /api/reports）
 
 ```json

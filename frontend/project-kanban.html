@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="60">
+  <title>五行投资日报项目看板</title>
+  <link rel="stylesheet" href="project-kanban.css?v=2">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">项目进展</p>
+        <h1 id="projectName">五行投资日报项目看板</h1>
+        <p id="projectSubtitle" class="subtitle">加载中...</p>
+      </div>
+      <div class="hero-meta">
+        <span id="lastUpdated">更新时间 --</span>
+        <a href="./" class="quiet-link">返回日报</a>
+      </div>
+    </header>
+
+    <section class="summary-grid" aria-label="项目摘要">
+      <article class="progress-panel">
+        <div class="panel-label">整体进度</div>
+        <div class="progress-row">
+          <strong id="progressValue">--%</strong>
+          <span id="overallStatus" class="status-pill pending">等待中</span>
+        </div>
+        <div class="progress-track">
+          <div id="progressBar" class="progress-fill"></div>
+        </div>
+        <p id="currentFocus" class="focus-text">正在读取项目状态。</p>
+      </article>
+      <div id="healthGrid" class="health-grid"></div>
+    </section>
+
+    <section class="section-head">
+      <div>
+        <p class="eyebrow">Kanban</p>
+        <h2>任务看板</h2>
+      </div>
+      <p>固定链接展示，数据每 60 秒自动刷新。</p>
+    </section>
+    <section id="kanbanBoard" class="kanban-board" aria-label="任务看板"></section>
+
+    <section class="section-head">
+      <div>
+        <p class="eyebrow">Phases</p>
+        <h2>阶段进度</h2>
+      </div>
+      <p>按阶段和步骤追踪，状态从步骤汇总到阶段。</p>
+    </section>
+    <section id="phaseList" class="phase-list" aria-label="阶段进度"></section>
+
+    <section class="bottom-grid">
+      <article class="events-panel">
+        <h2>最近变更</h2>
+        <div id="recentEvents" class="event-list"></div>
+      </article>
+      <article class="links-panel">
+        <h2>常用链接</h2>
+        <div id="projectLinks" class="link-list"></div>
+      </article>
+    </section>
+  </main>
+
+  <script src="project-kanban.js?v=2"></script>
+</body>
+</html>

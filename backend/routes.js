@@ -2,8 +2,73 @@ const express = require('express');
 const { run, get, all, getLastInsertRowId } = require('./database');
 const { getBaZi, countFiveElements, checkRelationship, getRecommendedIndustries, calculateTenGods, analyzeMarketStrength, getMarketFavors, getEnhancedIndustries, generateBaZiInterpretation, getJianchu, getChongSha, getZiweiSihua, calculateDayRating, getLuckyDirection, getAstockBriefing } = require('./bazi');
 const { getStockQuote, fetchQuote } = require('./market');
+const { getProviderStatus } = require('./historicalDataProvider');
 
 const router = express.Router();
+
+function stringifyJson(value) {
+  if (value === undefined || value === null) return null;
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+function parseJsonMaybe(value) {
+  if (!value) return null;
+  if (typeof value !== 'string') return value;
+  try { return JSON.parse(value); } catch (e) { return null; }
+}
+
+function normalizeArray(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function extractConclusion(operationAdvice, fiveElements) {
+  if (operationAdvice && operationAdvice.summary) return operationAdvice.summary;
+  if (operationAdvice && (operationAdvice.stance || operationAdvice.position || operationAdvice.rhythm)) {
+    return ['结论：' + (operationAdvice.stance || '观察'), operationAdvice.position, operationAdvice.rhythm]
+      .filter(Boolean)
+      .join('；');
+  }
+  const line = String(fiveElements || '').split('\n').find(item => item.startsWith('结论：'));
+  return line || null;
+}
+
+function upsertDecisionLog(reportId, payload) {
+  if (!reportId) return;
+  const industries = normalizeArray(parseJsonMaybe(payload.industries_json));
+  const operationAdvice = parseJsonMaybe(payload.operation_advice_json);
+  const keyVariables = parseJsonMaybe(payload.key_variables_json);
+  const marketResult = {
+    hs300_change: payload.hs300_change,
+    sh_change: payload.sh_change,
+    sz_change: payload.sz_change,
+    cy_change: payload.cy_change,
+    market_breadth: parseJsonMaybe(payload.market_breadth_json),
+    limit_stocks: parseJsonMaybe(payload.limit_stocks_json),
+    market_momentum: parseJsonMaybe(payload.market_momentum_json)
+  };
+  const existing = get('SELECT id FROM decision_logs WHERE report_id = ?', [reportId]);
+  const values = [
+    payload.report_date,
+    payload.report_type,
+    extractConclusion(operationAdvice, payload.five_elements),
+    JSON.stringify(industries.slice(0, 8)),
+    payload.key_variables_json,
+    JSON.stringify(marketResult),
+    payload.risk_warning || (operationAdvice && operationAdvice.risk) || null
+  ];
+  if (existing) {
+    run(`UPDATE decision_logs SET
+      report_date = ?, report_type = ?, conclusion = ?, recommended_industries_json = ?,
+      key_variables_json = ?, market_result_json = ?, risk_scenario = ?, updated_at = datetime('now')
+      WHERE report_id = ?`, values.concat(reportId));
+  } else {
+    run(`INSERT INTO decision_logs (
+      report_date, report_type, conclusion, recommended_industries_json,
+      key_variables_json, market_result_json, risk_scenario, report_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, values.concat(reportId));
+  }
+}
 
 // 获取所有日报列表（分页）
 router.get('/reports', (req, res) => {
@@ -74,6 +139,43 @@ router.get('/stats', (req, res) => {
   res.json({ total_reports: totalRow ? totalRow.total : 0 });
 });
 
+router.get('/backtest/status', (req, res) => {
+  const latestRuns = all(`SELECT id, name, framework_version, provider, start_date, end_date, metrics_json, created_at
+    FROM backtest_runs ORDER BY id DESC LIMIT 10`);
+  res.json({
+    providers: getProviderStatus(),
+    latest_runs: latestRuns.map(row => ({
+      id: row.id,
+      name: row.name,
+      framework_version: row.framework_version,
+      provider: row.provider,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      created_at: row.created_at,
+      metrics: parseJsonMaybe(row.metrics_json)
+    }))
+  });
+});
+
+router.get('/backtest/institutional-status', (req, res) => {
+  const latestRuns = all(`SELECT id, name, provider, start_date, end_date, params_json, metrics_json, created_at
+    FROM ia_backtest_runs
+    ORDER BY id DESC
+    LIMIT 5`);
+  res.json({
+    latest_runs: latestRuns.map(row => ({
+      id: row.id,
+      name: row.name,
+      provider: row.provider,
+      start_date: row.start_date,
+      end_date: row.end_date,
+      created_at: row.created_at,
+      params: parseJsonMaybe(row.params_json),
+      metrics: parseJsonMaybe(row.metrics_json)
+    }))
+  });
+});
+
 // 创建/更新日报
 router.post('/reports', (req, res) => {
   const {
@@ -88,7 +190,12 @@ router.post('/reports', (req, res) => {
     five_elements, prediction, joke,
     bazi_json, industries_json, alerts_json,
     risk_warning, verification,
-    global_indexes, global_indexes_json, card_summary,
+    global_indexes, global_indexes_json, market_momentum, market_momentum_json, card_summary,
+    operation_advice, operation_advice_json,
+    key_variables, key_variables_json,
+    market_breadth, market_breadth_json,
+    limit_stocks, limit_stocks_json,
+    annual_correction, annual_correction_json,
     bazi_interpretation
   } = req.body;
 
@@ -106,6 +213,13 @@ router.post('/reports', (req, res) => {
   }
 
   const existing = get('SELECT id FROM reports WHERE report_date = ? AND report_type = ?', [report_date, type]);
+  const globalIndexesJson = global_indexes_json || stringifyJson(global_indexes);
+  const marketMomentumJson = market_momentum_json || stringifyJson(market_momentum);
+  const operationAdviceJson = operation_advice_json || stringifyJson(operation_advice);
+  const keyVariablesJson = key_variables_json || stringifyJson(key_variables);
+  const marketBreadthJson = market_breadth_json || stringifyJson(market_breadth);
+  const limitStocksJson = limit_stocks_json || stringifyJson(limit_stocks);
+  const annualCorrectionJson = annual_correction_json || stringifyJson(annual_correction);
 
   let reportId;
   if (existing) {
@@ -118,7 +232,9 @@ router.post('/reports', (req, res) => {
         total_profit_loss = ?, total_profit_loss_percent = ?,
         holding_count = ?,
         bazi_json = ?, industries_json = ?, alerts_json = ?,
-        global_indexes_json = ?, card_summary = ?,
+        global_indexes_json = ?, market_momentum_json = ?, card_summary = ?,
+        operation_advice_json = ?, key_variables_json = ?,
+        market_breadth_json = ?, limit_stocks_json = ?, annual_correction_json = ?,
         bazi_interpretation = ?,
         risk_warning = ?, verification = ?,
         updated_at = datetime('now')
@@ -127,7 +243,8 @@ router.post('/reports', (req, res) => {
         sz_value, sz_change, cy_value, cy_change,
         total_profit_loss, total_profit_loss_percent, holding_count,
         bazi_json, industries_json, alerts_json,
-        global_indexes_json || (global_indexes ? JSON.stringify(global_indexes) : null), card_summary,
+        globalIndexesJson, marketMomentumJson, card_summary,
+        operationAdviceJson, keyVariablesJson, marketBreadthJson, limitStocksJson, annualCorrectionJson,
         bazi_interpretation, risk_warning, verification, report_date, type]);
     reportId = existing.id;
   } else {
@@ -135,14 +252,16 @@ router.post('/reports', (req, res) => {
       INSERT INTO reports (report_date, report_type, hs300_value, hs300_change, sh_value, sh_change,
         sz_value, sz_change, cy_value, cy_change,
         total_profit_loss, total_profit_loss_percent, holding_count,
-        bazi_json, industries_json, alerts_json, global_indexes_json, card_summary,
+        bazi_json, industries_json, alerts_json, global_indexes_json, market_momentum_json, card_summary,
+        operation_advice_json, key_variables_json, market_breadth_json, limit_stocks_json, annual_correction_json,
         bazi_interpretation, risk_warning, verification)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [report_date, type, hs300_value, hs300_change, sh_value, sh_change,
         sz_value, sz_change, cy_value, cy_change,
         total_profit_loss, total_profit_loss_percent, holding_count,
         bazi_json, industries_json, alerts_json,
-        global_indexes_json || (global_indexes ? JSON.stringify(global_indexes) : null), card_summary,
+        globalIndexesJson, marketMomentumJson, card_summary,
+        operationAdviceJson, keyVariablesJson, marketBreadthJson, limitStocksJson, annualCorrectionJson,
         bazi_interpretation, risk_warning, verification]);
     reportId = getLastInsertRowId();
   }
@@ -162,6 +281,23 @@ router.post('/reports', (req, res) => {
     run('INSERT INTO analysis (report_id, five_elements, prediction, joke, bazi_interpretation) VALUES (?, ?, ?, ?, ?)',
       [reportId, five_elements, prediction, joke, bazi_interpretation]);
   }
+
+  upsertDecisionLog(reportId, {
+    report_date,
+    report_type: type,
+    five_elements,
+    hs300_change,
+    sh_change,
+    sz_change,
+    cy_change,
+    industries_json,
+    market_momentum_json: marketMomentumJson,
+    operation_advice_json: operationAdviceJson,
+    key_variables_json: keyVariablesJson,
+    market_breadth_json: marketBreadthJson,
+    limit_stocks_json: limitStocksJson,
+    risk_warning
+  });
 
   res.json({ success: true, reportId, message: '日报创建成功' });
 });
@@ -250,7 +386,9 @@ router.post('/generate', async (req, res) => {
     const marketData = {
       hs300Change: hs300 ? hs300.change : 0,
       cybChange: cyb ? cyb.change : 0,
-      upStocks: []
+      upStocks: [],
+      reportDate: date,
+      scenario: 'short_term'
     };
 
     const industries = getEnhancedIndustries(bazi, fiveCount, marketData);
@@ -418,6 +556,30 @@ async function buildReportResponse(report, stocks, analysis) {
     try { response.global_indexes = JSON.parse(report.global_indexes_json); } catch (e) { console.error('解析global_indexes_json失败:', e); }
   }
 
+  if (report.market_momentum_json) {
+    try { response.market_momentum = JSON.parse(report.market_momentum_json); } catch (e) { console.error('解析market_momentum_json失败:', e); }
+  }
+
+  if (report.operation_advice_json) {
+    try { response.operation_advice = JSON.parse(report.operation_advice_json); } catch (e) { console.error('解析operation_advice_json失败:', e); }
+  }
+
+  if (report.key_variables_json) {
+    try { response.key_variables = JSON.parse(report.key_variables_json); } catch (e) { console.error('解析key_variables_json失败:', e); }
+  }
+
+  if (report.market_breadth_json) {
+    try { response.market_breadth = JSON.parse(report.market_breadth_json); } catch (e) { console.error('解析market_breadth_json失败:', e); }
+  }
+
+  if (report.limit_stocks_json) {
+    try { response.limit_stocks = JSON.parse(report.limit_stocks_json); } catch (e) { console.error('解析limit_stocks_json失败:', e); }
+  }
+
+  if (report.annual_correction_json) {
+    try { response.annual_correction = JSON.parse(report.annual_correction_json); } catch (e) { console.error('解析annual_correction_json失败:', e); }
+  }
+
   if (report.bazi_json) {
     try {
       const baziData = JSON.parse(report.bazi_json);
@@ -512,9 +674,16 @@ async function buildReportResponse(report, stocks, analysis) {
   }
 
   const hs300Change = report.hs300_change || 0;
-  if (reportType === 'morning') response.risk_warning = report.risk_warning || generateMorningRiskWarning(hs300Change, response.bazi, response.market_strength);
-  else if (reportType === 'noon') response.risk_warning = report.risk_warning || generateNoonRiskWarning(hs300Change, response.bazi);
-  else response.risk_warning = report.risk_warning || generateEveningRiskWarning(hs300Change, response.bazi);
+  const generatedRisk = reportType === 'morning'
+    ? generateMorningRiskWarning(hs300Change, response.bazi, response.market_strength)
+    : reportType === 'noon'
+      ? generateNoonRiskWarning(hs300Change, response.bazi)
+      : generateEveningRiskWarning(hs300Change, response.bazi);
+  response.risk_warning = normalizeRiskWarning(report.risk_warning || generatedRisk, reportType, {
+    hs300Change,
+    shChange: report.sh_change,
+    cyChange: report.cy_change
+  });
 
   if (reportType === 'evening') {
     response.verification = report.verification || generateVerification(hs300Change, response.bazi);
@@ -559,29 +728,80 @@ function generateMorningRiskWarning(change, bazi, marketStrength) {
   const actionMap = { '身强': '进取', '偏强': '偏多', '中和': '稳健', '偏弱': '防守', '身弱': '保守' };
   const action = actionMap[strength] || '稳健';
 
-  let warning = `大A运势${strength}（${action}），${elementName}属性当令。`;
-  warning += change > 0 ? '高开注意回落风险。' : '低开关注支撑位，谨慎抄底。';
-  warning += '早盘波动较大，建议控制仓位。';
-  return warning;
+  const fact = `事实：沪深300当前${formatSignedPct(change)}。`;
+  const forecast = `预测：五行强弱显示${elementName}属性当令，策略状态偏${action}。`;
+  const scenario = change > 0
+    ? '风险场景：当前上涨，但模型提示从盘中高位回撤/涨幅收窄风险，早盘不要用追高替代确认。'
+    : '风险场景：当前承压，若开盘后跌幅扩大且量能不足，先看支撑位，不急于抄底。';
+  return fact + forecast + scenario + '早盘波动较大，建议控制仓位。';
 }
 
 function generateNoonRiskWarning(change, bazi) {
-  let warning = '上午市场';
-  if (Math.abs(change) < 0.5) warning += '窄幅震荡，多空胶着。';
-  else if (change > 0) warning += '震荡上行，但需防午后回落。';
-  else warning += '承压下行，关注午后能否企稳。';
-  warning += '午间注意消息面变化，下午开盘可能有波动。';
-  return warning;
+  const fact = `事实：上午沪深300${formatSignedPct(change)}。`;
+  let forecast = '预测：午后大概率继续围绕量能和主线强度做方向选择。';
+  let scenario = '风险场景：消息面或资金面转弱时，下午开盘可能放大波动。';
+  if (Math.abs(change) < 0.5) {
+    forecast = '预测：上午窄幅震荡，多空仍在拉锯。';
+  } else if (change > 0) {
+    forecast = '预测：上午震荡上行，但上涨后需要确认承接。';
+    scenario = '风险场景：当前上涨，但模型提示从盘中高位回撤/涨幅收窄风险；若午后开盘量能跟不上，应避免继续追高。';
+  } else {
+    forecast = '预测：上午承压下行，午后先看能否企稳。';
+    scenario = '风险场景：若午后跌幅扩大且主线行业转弱，应减少弱势仓位。';
+  }
+  return fact + forecast + scenario;
 }
 
 function generateEveningRiskWarning(change, bazi) {
-  let warning = '今日大盘';
-  if (change > 1) warning += '强势上涨，但连续上涨后注意获利回吐压力。';
-  else if (change > 0) warning += '小幅收涨，震荡格局中保持谨慎。';
-  else if (change > -1) warning += '小幅收跌，注意明日开盘方向选择。';
-  else warning += '明显下跌，警惕进一步下行风险。';
-  warning += '建议明日关注市场情绪变化。';
-  return warning;
+  const fact = `事实：今日沪深300${formatSignedPct(change)}。`;
+  let forecast = '预测：明日先看指数方向选择和行业轮动强度。';
+  let scenario = '风险场景：若市场情绪走弱，应降低交易频率。';
+  if (change > 1) {
+    forecast = '预测：强势上涨后仍可能延续强势，但短线性价比下降。';
+    scenario = '风险场景：当前上涨，但模型提示从盘中高位回撤/涨幅收窄风险；若明日高开低走，优先保护利润。';
+  } else if (change > 0) {
+    forecast = '预测：小幅收涨后仍处震荡验证阶段。';
+    scenario = '风险场景：当前上涨，但模型提示从盘中高位回撤/涨幅收窄风险；若成交量不能配合，谨慎加仓。';
+  } else if (change > -1) {
+    forecast = '预测：小幅收跌后等待明日开盘方向确认。';
+    scenario = '风险场景：若明日低开且主线继续走弱，先控制仓位。';
+  } else {
+    forecast = '预测：明显下跌后防守优先，等待止跌信号。';
+    scenario = '风险场景：若继续下探且无放量承接，警惕进一步下行风险。';
+  }
+  return fact + forecast + scenario + '建议明日关注市场情绪变化。';
+}
+
+function formatSignedPct(value) {
+  const n = Number(value || 0);
+  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+}
+
+function normalizeRiskWarning(text, reportType, context) {
+  const source = String(text || '').trim();
+  const hs = Number(context.hs300Change || 0);
+  const sh = Number(context.shChange || 0);
+  const cy = Number(context.cyChange || 0);
+  const hasStructuredLabels = source.includes('事实：') && source.includes('预测：') && source.includes('风险场景：');
+  const hasOldDownsideWording = hs > 0 && /会跌|回落超过1%|跌1%|跌幅.*1%/.test(source);
+
+  if (hasStructuredLabels && !hasOldDownsideWording) return source;
+
+  const fact = `事实：沪深300当前${formatSignedPct(hs)}，上证${formatSignedPct(sh)}，创业板${formatSignedPct(cy)}。`;
+  let forecast = '预测：模型提示继续观察量能、资金和主线行业强度。';
+  let scenario;
+  if (hs > 0) {
+    forecast = reportType === 'noon'
+      ? '预测：上午上涨后，午后需要确认承接是否继续。'
+      : '预测：当前上涨后仍处震荡验证阶段。';
+    scenario = '风险场景：当前上涨，但模型提示从盘中高位回撤/涨幅收窄风险；若资金转弱或主线不能延续强度，应降低仓位。';
+  } else if (hs < 0) {
+    forecast = '预测：当前承压，先看指数能否止跌企稳。';
+    scenario = '风险场景：若跌幅扩大且没有放量承接，应减少弱势持仓。';
+  } else {
+    scenario = '风险场景：当前窄幅震荡，若量能不足且主线走弱，避免扩大持仓。';
+  }
+  return fact + forecast + scenario;
 }
 
 function generateVerification(change, bazi) {

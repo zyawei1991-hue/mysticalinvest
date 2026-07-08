@@ -9,6 +9,7 @@
 const http = require('http');
 const https = require('https');
 const iconv = require('iconv-lite');
+const { all } = require('./database');
 
 const A_SHARE_FS = 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23';
 const ETF_FS = 'b:MK0021,b:MK0022,b:MK0023,b:MK0024';
@@ -305,6 +306,123 @@ function fetchQuoteRaw(codeStr) {
       });
     }).on('error', reject);
   });
+}
+
+function normalizeAshareCode(input) {
+  const raw = String(input || '').trim();
+  const code = raw
+    .replace(/^(sh|sz)/i, '')
+    .replace(/\.(SH|SZ)$/i, '');
+  if (!/^\d{6}$/.test(code)) {
+    throw new Error('暂只支持 6 位 A 股/ETF 代码走势图');
+  }
+  return code;
+}
+
+function eastmoneySecid(input) {
+  const code = normalizeAshareCode(input);
+  const market = /^(6|5|9|11)/.test(code) ? '1' : '0';
+  return { code, secid: market + '.' + code };
+}
+
+function normalizeTsCode(input) {
+  const code = normalizeAshareCode(input);
+  const market = /^(6|5|9|11)/.test(code) ? 'SH' : 'SZ';
+  return { code, tsCode: code + '.' + market };
+}
+
+function mapTrendRows(rows, source, code) {
+  return {
+    code,
+    name: rows[0]?.name || code,
+    source,
+    bars: rows.slice().reverse().map(row => ({
+      date: row.trade_date,
+      open: toNumber(row.open),
+      close: toNumber(row.close),
+      high: toNumber(row.high),
+      low: toNumber(row.low),
+      volume: toNumber(row.vol || row.volume),
+      amount: toNumber(row.amount),
+      changePercent: toNumber(row.pct_chg)
+    })).filter(item => item.date && item.close !== null)
+  };
+}
+
+function loadLocalStockTrend(stockCode, days) {
+  const { code, tsCode } = normalizeTsCode(stockCode);
+  const limit = Math.max(5, Math.min(120, Number(days) || 30));
+  const iaRows = all(`SELECT b.ts_code, s.name, b.trade_date, b.open, b.high, b.low, b.close, b.vol, b.amount, b.pct_chg
+    FROM ia_daily_bars b
+    LEFT JOIN ia_stock_basic s ON s.ts_code = b.ts_code
+    WHERE b.ts_code = ?
+    ORDER BY b.trade_date DESC
+    LIMIT ?`, [tsCode, limit]);
+  if (iaRows.length >= 2) return mapTrendRows(iaRows, 'local-ia-daily-bars', code);
+
+  const cachedRows = all(`SELECT symbol as ts_code, trade_date, open, high, low, close, volume, amount, pct_chg
+    FROM historical_daily_bars
+    WHERE symbol = ?
+    ORDER BY trade_date DESC
+    LIMIT ?`, [tsCode, limit]);
+  if (cachedRows.length >= 2) return mapTrendRows(cachedRows, 'local-historical-daily-bars', code);
+
+  return null;
+}
+
+async function getStockTrend(stockCode, days = 30) {
+  const local = loadLocalStockTrend(stockCode, days);
+  if (local && local.bars.length >= 2) return local;
+
+  const { code, secid } = eastmoneySecid(stockCode);
+  const limit = Math.max(5, Math.min(120, Number(days) || 30));
+  const params = new URLSearchParams({
+    secid,
+    fields1: 'f1,f2,f3,f4,f5,f6',
+    fields2: 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61',
+    klt: '101',
+    fqt: '1',
+    end: '20500101',
+    lmt: String(limit)
+  });
+  let payload;
+  try {
+    payload = await httpsGetJson('https://push2his.eastmoney.com/api/qt/stock/kline/get?' + params.toString(), {
+      timeout: 10000,
+      retries: 3
+    });
+  } catch (error) {
+    return {
+      code,
+      name: code,
+      source: 'unavailable',
+      bars: [],
+      error: error.message
+    };
+  }
+  const data = payload && payload.data ? payload.data : {};
+  const bars = (data.klines || []).map(line => {
+    const fields = String(line).split(',');
+    return {
+      date: fields[0],
+      open: toNumber(fields[1]),
+      close: toNumber(fields[2]),
+      high: toNumber(fields[3]),
+      low: toNumber(fields[4]),
+      volume: toNumber(fields[5]),
+      amount: toNumber(fields[6]),
+      amplitude: toNumber(fields[7]),
+      changePercent: toNumber(fields[8]),
+      change: toNumber(fields[9]),
+      turnover: toNumber(fields[10])
+    };
+  }).filter(item => item.date && item.close !== null);
+  return {
+    code,
+    name: data.name || code,
+    source: 'eastmoney-kline',
+    bars
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -736,6 +854,7 @@ async function getMarketMomentum() {
     const snapshot = await fetchEastmoneyRealtimeSnapshot();
     result.turnover.active = snapshot.aShare.turnoverLeaders.slice(0, 5);
     result.turnover.marketRate = snapshot.aShare.turnoverRate;
+    result.turnover.totalAmount = snapshot.aShare.totalAmount;
     result.turnover.sampleSize = snapshot.aShare.total;
   } catch (e) {
     try {
@@ -954,6 +1073,7 @@ module.exports = {
   getMoneyFlowDivergence,
   getMarketMomentum,
   getStockQuote,
+  getStockTrend,
   queryEastmoney,
   fetchEastmoneyRealtimeSnapshot,
   fetchEastmoneyNorthboundDailyStats,

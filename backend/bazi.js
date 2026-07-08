@@ -357,9 +357,9 @@ function getBaZi(date = new Date()) {
  * 计算五行强弱（天干1分 + 地支本气0.5分 + 藏干0.25分）
  * V2：综合计算，每日五行强弱有真实变化
  */
-function countFiveElements(bazi) {
+function countFiveElements(bazi, options = {}) {
   const count = { '木': 0, '火': 0, '土': 0, '金': 0, '水': 0 };
-  const pillars = ['year','month','day','hour'];
+  const pillars = options.includeHour === false ? ['year','month','day'] : ['year','month','day','hour'];
   pillars.forEach(p => {
     const gan = bazi[p].gan;
     const zhi = bazi[p].zhi;

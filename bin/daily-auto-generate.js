@@ -16,8 +16,32 @@ const { formatScenarioWeights } = require('../backend/swIndustryFramework.js');
 const { getWeatherRiskSignals, getPolicySignalPlaceholder } = require('../backend/freeExternalSignals.js');
 const { callLLM } = require('../backend/llm.js');
 
+const cliArgs = process.argv.slice(2);
+function readOption(name) {
+  const prefixed = cliArgs.find(arg => arg.startsWith(name + '='));
+  if (prefixed) return prefixed.slice(name.length + 1);
+  const index = cliArgs.indexOf(name);
+  if (index >= 0 && cliArgs[index + 1] && !cliArgs[index + 1].startsWith('--')) return cliArgs[index + 1];
+  return '';
+}
+function firstPositionalArg() {
+  const optionValueIndexes = new Set();
+  cliArgs.forEach((arg, index) => {
+    if (arg.startsWith('--') && !arg.includes('=') && cliArgs[index + 1] && !cliArgs[index + 1].startsWith('--')) {
+      optionValueIndexes.add(index + 1);
+    }
+  });
+  return cliArgs.find((arg, index) => !arg.startsWith('--') && !optionValueIndexes.has(index)) || '';
+}
+const FORCED_REPORT_TYPE = readOption('--type') || process.env.DAILY_REPORT_TYPE || '';
+const NO_PUSH = cliArgs.includes('--no-push') || process.env.DAILY_NO_PUSH === '1';
+const REPORT_TYPE_HOUR = { morning: 9, noon: 13, evening: 15 };
+
 // 今日日期
 const today = new Date();
+if (FORCED_REPORT_TYPE && REPORT_TYPE_HOUR[FORCED_REPORT_TYPE] !== undefined) {
+  today.setHours(REPORT_TYPE_HOUR[FORCED_REPORT_TYPE], 0, 0, 0);
+}
 function pad2(value) {
   return String(value).padStart(2, '0');
 }
@@ -27,7 +51,7 @@ function formatLocalDate(date) {
 const dateStr = formatLocalDate(today);
 
 // 配置。FEISHU_WEBHOOK_ENABLED=1 时由本脚本使用群 webhook 推送；否则计划任务可回退到应用身份推送。
-const WEBHOOK_URL = process.argv[2] || (process.env.FEISHU_WEBHOOK_ENABLED === '1' ? process.env.FEISHU_WEBHOOK : '') || '';
+const WEBHOOK_URL = NO_PUSH ? '' : (firstPositionalArg() || (process.env.FEISHU_WEBHOOK_ENABLED === '1' ? process.env.FEISHU_WEBHOOK : '') || '');
 const SITE_URL = process.env.DAILY_SITE_URL || 'http://117.72.58.55/daily/';
 
 // 行业五行颜色
@@ -108,6 +132,41 @@ function formatMomentumLine(momentum) {
     ? Number(momentum.turnover.marketRate).toFixed(2) + '%'
     : '实时源未返回';
   return `北向${formatNorthboundLine(momentum.northbound)}，主力${formatFlowYi(momentum.mainForce?.netInflow)}，ETF${formatFlowYi(momentum.etfFlow?.netInflow)}，换手${turnover}；主力活跃：${leaders}；ETF流向：${etfs}。`;
+}
+
+function buildVolumeLine(marketMomentum, marketBreadth) {
+  const turnover = Number(marketMomentum?.turnover?.marketRate);
+  const up = Number(marketBreadth?.up || 0);
+  const down = Number(marketBreadth?.down || 0);
+  const total = Number(marketBreadth?.total || (up + down + Number(marketBreadth?.flat || 0)));
+  const breadthBalance = total ? ((up - down) / total) * 100 : NaN;
+  const mainFlow = Number(marketMomentum?.mainForce?.netInflow);
+  const etfFlow = Number(marketMomentum?.etfFlow?.netInflow);
+  const activeNames = (marketMomentum?.turnover?.active || [])
+    .slice(0, 3)
+    .map(item => item.name)
+    .filter(Boolean)
+    .join('、') || '暂无';
+
+  if (!Number.isFinite(turnover)) return '量能数据未返回，暂不作为加仓依据';
+
+  const parts = [`全市场换手${turnover.toFixed(2)}%`];
+  if (Number.isFinite(breadthBalance)) parts.push(`宽度差${breadthBalance >= 0 ? '+' : ''}${breadthBalance.toFixed(2)}%`);
+  if (Number.isFinite(mainFlow)) parts.push(`主力${formatFlowYi(mainFlow)}`);
+  if (Number.isFinite(etfFlow)) parts.push(`ETF${formatFlowYi(etfFlow)}`);
+
+  if (turnover >= 3 && Number.isFinite(breadthBalance) && breadthBalance < -8 && Number.isFinite(mainFlow) && mainFlow < 0) {
+    parts.push('结论：放量分歧，承接偏弱，不支持激进扩仓');
+  } else if (turnover >= 3 && Number.isFinite(breadthBalance) && breadthBalance > 8 && Number.isFinite(mainFlow) && mainFlow > 0) {
+    parts.push('结论：量价配合较好，可跟踪强势方向延续性');
+  } else if (turnover < 1.5) {
+    parts.push('结论：缩量观察，不追涨');
+  } else {
+    parts.push('结论：有量但方向未完全确认，需要结合宽度和资金');
+  }
+
+  parts.push(`高换手样本：${activeNames}`);
+  return parts.join('；');
 }
 
 function getGlobalTone(globalIndexes) {
@@ -221,6 +280,7 @@ function buildKeyVariablesSnapshot(params) {
   const { hs300Value, hs300Change, shValue, shChange, szValue, szChange, cyValue, cyChange, marketBreadth, limitStocks, globalIndexes, marketMomentum, annualCorrection, operationAdvice, industries, weatherSignals, policySignals } = params;
   const globalLine = [globalIndexes.nasdaq, globalIndexes.hsi].filter(Boolean).map(item => `${item.name}${formatPct(item.changePercent)}`).join('；') || '实时源未返回';
   const moneyLine = formatMomentumLine(marketMomentum);
+  const volumeLine = buildVolumeLine(marketMomentum, marketBreadth);
   const topIndustry = (industries || [])[0] || {};
   const variables = [
     { group: 'market', name: '沪深300', value: `${hs300Value} (${formatPct(hs300Change)})`, source: 'Tencent quote', status: 'ready' },
@@ -228,6 +288,7 @@ function buildKeyVariablesSnapshot(params) {
     { group: 'sentiment', name: '市场宽度', value: `上涨${marketBreadth.up || 0}、下跌${marketBreadth.down || 0}、平盘${marketBreadth.flat || 0}`, source: marketBreadth.source || 'Eastmoney push2 full', status: (marketBreadth.up || marketBreadth.down) ? 'ready' : 'partial' },
     { group: 'sentiment', name: '涨跌停', value: `涨停${limitStocks.up.length}、跌停${limitStocks.down.length}`, source: limitStocks.source || 'Eastmoney push2 full', status: 'ready' },
     { group: 'fund', name: '资金动量', value: moneyLine, source: 'Eastmoney push2 全市场；Tushare盘后兜底待续期', status: marketMomentum && !marketMomentum.error ? 'ready' : 'partial' },
+    { group: 'sentiment', name: '量能状态', value: volumeLine, source: 'Eastmoney push2 full-market turnover', status: volumeLine.includes('未返回') ? 'partial' : 'ready' },
     { group: 'macro', name: '海外市场', value: globalLine, source: 'Tencent quote', status: globalLine === '实时源未返回' ? 'partial' : 'ready' },
     { group: 'annual', name: '年度修正', value: `${annualCorrection.label}：${formatAnnualCorrectionSummary(annualCorrection)}`, source: '年度节律规则', status: 'ready' },
     { group: 'industry', name: '行业评分', value: `Top方向：${topIndustry.name || '等待确认'}；权重：${topIndustry.scenario_weight_summary || formatScenarioWeights('short_term')}`, source: '行业属性/资金/风险综合评分', status: 'ready' },
@@ -474,19 +535,24 @@ async function generateDailyData() {
 
   // 时段判断
   const hour = today.getHours();
-  let reportType = 'morning';
+  let reportType = FORCED_REPORT_TYPE || 'morning';
   let cardTitle = `五行投资早盘日报 ${dateStr}`;
-  if (hour >= 11 && hour < 14) {
+  if (!FORCED_REPORT_TYPE && hour >= 11 && hour < 14) {
     reportType = 'noon';
     cardTitle = `五行投资午间日报 ${dateStr}`;
-  } else if (hour >= 15) {
+  } else if (!FORCED_REPORT_TYPE && hour >= 15) {
     reportType = 'evening';
     cardTitle = `五行投资盘后总结 ${dateStr}`;
   }
   
   // 八字排盘（精确农历计算）
+  if (FORCED_REPORT_TYPE === 'noon') {
+    cardTitle = `浜旇鎶曡祫鍗堥棿鏃ユ姤 ${dateStr}`;
+  } else if (FORCED_REPORT_TYPE === 'evening') {
+    cardTitle = `浜旇鎶曡祫鐩樺悗鎬荤粨 ${dateStr}`;
+  }
   const bazi = getBaZi(today);
-  const fiveCount = countFiveElements(bazi);
+  const fiveCount = countFiveElements(bazi, { includeHour: false });
   const annualCorrection = correctedFactors(fiveCount);
   const marketData = { hs300Change: parseFloat(hs300Change), upStocks: limitStocks.up, reportDate: today, marketMomentum, scenario: 'short_term' };
   const industries = getEnhancedIndustries(bazi, fiveCount, marketData);
@@ -599,7 +665,14 @@ async function generateDailyData() {
     prediction: null,
     bazi_interpretation: null,
     card_title: cardTitle,
-    bazi_json: JSON.stringify(bazi),
+    bazi_json: JSON.stringify({
+      ...bazi,
+      scoring_scope: {
+        pillars: ['year', 'month', 'day'],
+        excluded: ['hour'],
+        note: 'hour pillar is recorded but excluded from five-element and industry ranking'
+      }
+    }),
     industries_json: JSON.stringify(industries),
     global_indexes: globalIndexes,
     market_momentum: marketMomentum,

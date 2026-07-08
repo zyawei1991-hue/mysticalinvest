@@ -7,6 +7,8 @@ const API_BASE = (function() {
 let currentPage = 1;
 const pageSize = 10;
 let currentReportType = getDefaultReportType();
+let currentPresentationMode = getDefaultPresentationMode();
+let currentReportData = null;
 let latestBacktestCalibration = null;
 
 // DOM元素
@@ -26,7 +28,9 @@ const totalReports = document.getElementById('totalReports');
 document.addEventListener('DOMContentLoaded', () => {
   loadStats();
   initVersionTabs();
+  initPresentationTabs();
   setActiveVersionTab(currentReportType);
+  setActivePresentationTab(currentPresentationMode);
   loadLatest();
   initStockAnalysis();
 
@@ -72,7 +76,22 @@ function initVersionTabs() {
     tab.addEventListener('click', () => {
       currentReportType = tab.dataset.type;
       setActiveVersionTab(currentReportType);
+      syncReportUrlState();
       loadLatest();
+    });
+  });
+}
+
+function initPresentationTabs() {
+  const tabs = document.querySelectorAll('.presentation-tab');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      currentPresentationMode = tab.dataset.view || 'standard';
+      setActivePresentationTab(currentPresentationMode);
+      syncReportUrlState();
+      if (currentReportData) {
+        renderReport(currentReportData);
+      }
     });
   });
 }
@@ -86,10 +105,29 @@ function getDefaultReportType() {
   return 'morning';
 }
 
+function getDefaultPresentationMode() {
+  const urlView = new URLSearchParams(window.location.search).get('view');
+  return ['standard', 'user'].includes(urlView) ? urlView : 'standard';
+}
+
 function setActiveVersionTab(type) {
   document.querySelectorAll('.version-tab').forEach(tab => {
     tab.classList.toggle('active', tab.dataset.type === type);
   });
+}
+
+function setActivePresentationTab(view) {
+  document.querySelectorAll('.presentation-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.view === view);
+  });
+}
+
+function syncReportUrlState() {
+  const params = new URLSearchParams(window.location.search);
+  params.set('type', currentReportType);
+  params.set('view', currentPresentationMode);
+  const next = window.location.pathname + '?' + params.toString();
+  window.history.replaceState({}, '', next);
 }
 
 // 初始化个股分析
@@ -328,6 +366,7 @@ async function loadLatest() {
 
     const data = await res.json();
     latestBacktestCalibration = await loadBacktestCalibration();
+    currentReportData = data;
     renderReport(data);
     loading.style.display = 'none';
     reportContent.style.display = 'block';
@@ -392,6 +431,7 @@ function renderRiskSection(data) {
 }
 
 function renderReport(data) {
+  reportContent.dataset.view = currentPresentationMode;
 
   const typeNames = {
     'morning': '早盘版',
@@ -407,8 +447,17 @@ function renderReport(data) {
     </div>
   `;
 
-  html += renderMarketOverview(data);
-  html += renderDecisionDashboard(data);
+  if (currentPresentationMode === 'user') {
+    html += renderUserDecisionGuide(data);
+    html += renderMarketOverview(data);
+  } else {
+    html += renderMarketOverview(data);
+    html += renderDecisionDashboard(data);
+  }
+  html += renderMysticInvestmentGuide(data);
+  html += renderNumericSnapshotSection(data);
+  html += renderVolumeAnalysisSection(data);
+  html += renderHistoricalTrendSection(data.report_type);
   html += renderBacktestCalibrationSection(latestBacktestCalibration);
 
   if (data.market_momentum) {
@@ -524,6 +573,7 @@ function renderReport(data) {
   }
 
   reportContent.innerHTML = html;
+  setTimeout(function() { loadReportTrendChart(currentReportType); }, 50);
   // 异步加载关注标的实时价格
   if (data.stocks && data.stocks.length > 0) {
     setTimeout(function() { loadStockRealtimePrices(data.stocks); }, 50);
@@ -672,7 +722,9 @@ function getAttackReason(data) {
   const mainFlow = data.market_momentum && data.market_momentum.mainForce
     ? data.market_momentum.mainForce.netInflow
     : null;
-  const flow = Number.isFinite(Number(mainFlow)) ? '主力' + formatFlowYi(mainFlow) : '资金实时源未完全返回';
+  const flow = hasEffectiveMomentum(data.market_momentum) && Number.isFinite(Number(mainFlow)) && Math.abs(Number(mainFlow)) > 0
+    ? '主力' + formatFlowYi(mainFlow)
+    : '资金未形成有效确认';
   return profile + '；' + flow;
 }
 
@@ -715,13 +767,14 @@ function getSpecialReminder(data, strategy) {
 
 function getSpecialReminderNote(data, strategy) {
   const focus = getTopIndustryNames(data, 2);
+  const confirmText = hasEffectiveMomentum(data.market_momentum) ? '宽度和资金确认' : '宽度和量价确认';
   if (data.report_type === 'evening') {
     return '先验证' + focus + '能否放量延续，再决定是否加仓';
   }
   if (data.report_type === 'noon') {
     return '若量能不跟随，尾盘不扩大仓位';
   }
-  return '不追首波拉升，等宽度和资金确认';
+  return '不追首波拉升，等' + confirmText;
 }
 
 function buildOneLineConclusion(data, strategy) {
@@ -770,6 +823,583 @@ function renderDecisionDashboard(data) {
   return html;
 }
 
+function getDecisionMode(data, strategy) {
+  const stance = String(strategy.stance || '');
+  const position = compactPositionText(strategy.position);
+  const breadth = data.market_breadth || {};
+  const flow = Number((data.market_momentum || {}).mainForce?.netInflow || 0);
+  const weakBreadth = Number(breadth.down || 0) > Number(breadth.up || 0);
+  if (/防守|减仓|空仓|谨慎/.test(stance) || flow < 0 || weakBreadth) {
+    return {
+      label: '观察为主',
+      tone: 'caution',
+      action: '不急着加仓',
+      position,
+      summary: '有可跟踪方向，但资金或市场宽度还不支持激进扩仓。'
+    };
+  }
+  if (/进攻|积极|加仓/.test(stance)) {
+    return {
+      label: '可以试探',
+      tone: 'active',
+      action: '小仓位分散试错',
+      position,
+      summary: '市场和主线方向有共振迹象，但仍要用量能确认。'
+    };
+  }
+  return {
+    label: '等待确认',
+    tone: 'neutral',
+    action: '先看主线延续',
+    position,
+    summary: '今日更适合观察方向和验证信号，不适合凭单点消息重仓。'
+  };
+}
+
+function getEtfCandidates(data) {
+  const leaders = (((data.market_momentum || {}).etfFlow || {}).leaders || [])
+    .map(item => item.name)
+    .filter(Boolean);
+  const fallback = getTopIndustryNames(data, 3)
+    .split('、')
+    .filter(Boolean)
+    .map(name => name + 'ETF');
+  return Array.from(new Set(leaders.concat(fallback))).slice(0, 4);
+}
+
+function getStockCandidates(data) {
+  const stocks = (data.stocks || []).map(item => item.name || item.code).filter(Boolean);
+  if (stocks.length) return stocks.slice(0, 4);
+  return (data.industries || []).slice(0, 3).map(item => item.name + '候选池').filter(Boolean);
+}
+
+function getHoldingAction(data, strategy) {
+  const focus = getTopIndustryNames(data, 2);
+  const avoid = getAvoidDirection(data);
+  if (/防守|观察|谨慎/.test(strategy.stance || '')) {
+    return '持有方向若不在' + focus + '，优先减弱势仓，不急换到高弹性方向。';
+  }
+  return '已有' + focus + '相关仓位可继续观察，跌破节奏或放量转弱再降仓。';
+}
+
+function getUserPersonas(data, strategy, mode) {
+  const etfs = getEtfCandidates(data);
+  const stocks = getStockCandidates(data);
+  const attack = getTopIndustryNames(data, 3);
+  const defense = getDefenseDirection(data);
+  const avoid = getAvoidDirection(data);
+  return [
+    {
+      name: 'ETF用户',
+      action: mode.tone === 'active' ? '跟行业，不押单票' : '只观察强弱，不追涨',
+      target: etfs.join('、') || attack,
+      rule: '用行业ETF或宽基ETF表达方向，分2-3笔，不在第一波拉升时一次性买满。'
+    },
+    {
+      name: '个股用户',
+      action: '只看候选池',
+      target: stocks.join('、') || attack,
+      rule: '先过资金、趋势、成交量，再用五行属性做二次确认；日报不给“必买”结论。'
+    },
+    {
+      name: '已持仓用户',
+      action: /观察|防守|谨慎/.test(strategy.stance || '') ? '先评估持仓是否顺势' : '顺势仓位可保留',
+      target: attack,
+      rule: getHoldingAction(data, strategy)
+    },
+    {
+      name: '稳健用户',
+      action: '仓位优先',
+      target: defense,
+      rule: '若宽度弱或主力净流出，宁可错过也不追高；回避' + avoid + '。'
+    }
+  ];
+}
+
+function renderGuideLine(title, value, note, tone) {
+  return '<div class="guide-line ' + tone + '"><span>' + escapeHtml(title) + '</span><strong>' + escapeHtml(value) + '</strong><small>' + escapeHtml(note) + '</small></div>';
+}
+
+function renderPersonaCard(persona) {
+  return '<article class="persona-card">'
+    + '<div class="persona-name">' + escapeHtml(persona.name) + '</div>'
+    + '<h3>' + escapeHtml(persona.action) + '</h3>'
+    + '<p class="persona-target">' + escapeHtml(persona.target) + '</p>'
+    + '<p class="persona-rule">' + escapeHtml(persona.rule) + '</p>'
+    + '</article>';
+}
+
+function renderUserDecisionGuide(data) {
+  const strategy = getStrategyModel(data);
+  const mode = getDecisionMode(data, strategy);
+  const attack = getTopIndustryNames(data, 3);
+  const defense = getDefenseDirection(data);
+  const avoid = getAvoidDirection(data);
+  const reminder = getSpecialReminder(data, strategy);
+  const reminderNote = getSpecialReminderNote(data, strategy);
+  const personas = getUserPersonas(data, strategy, mode);
+  const oneLine = buildOneLineConclusion(data, strategy);
+
+  let html = '<section class="user-decision-guide mode-' + mode.tone + '">';
+  html += '<div class="guide-hero">';
+  html += '<div class="guide-copy">';
+  html += '<div class="guide-kicker">用户视角版 · 先给动作</div>';
+  html += '<h2>' + escapeHtml(mode.label) + '</h2>';
+  html += '<p>' + escapeHtml(oneLine) + '</p>';
+  html += '</div>';
+  html += '<div class="guide-signal">';
+  html += '<span>今日动作</span>';
+  html += '<strong>' + escapeHtml(mode.action) + '</strong>';
+  html += '<small>仓位：' + escapeHtml(mode.position) + '</small>';
+  html += '</div>';
+  html += '</div>';
+
+  html += '<div class="guide-lines">';
+  html += renderGuideLine('可以做', attack, '优先用行业/ETF表达，不先押单票', 'go');
+  html += renderGuideLine('先等待', reminder, reminderNote, 'wait');
+  html += renderGuideLine('不适合做', avoid, '高位追涨、单票重仓和无量反抽都降级处理', 'stop');
+  html += '</div>';
+
+  html += '<div class="persona-board">';
+  personas.forEach(persona => { html += renderPersonaCard(persona); });
+  html += '</div>';
+
+  html += '<div class="guide-method">';
+  html += '<span>五行怎么用</span>';
+  html += '<strong>五行只做行业属性和时机先验；是否操作由市场宽度、资金动量、量价延续和风险触发共同确认。</strong>';
+  html += '</div>';
+  html += '</section>';
+  return html;
+}
+
+function getMysticSignalText(data) {
+  const briefing = data.astock_briefing || {};
+  const strength = data.market_strength || {};
+  const top = getTopIndustryNames(data, 3);
+  const annual = data.annual_correction || ((data.industries || [])[0] || {}).annual_correction || {};
+  const annualLabel = annual.label || '';
+  const annualRationale = annual.rationale || '';
+  const dayText = briefing.ganzhi ? briefing.ganzhi + '日' : (data.bazi && data.bazi.date ? data.bazi.date : '今日');
+  const tone = briefing.trend || strength.desc || getElementTone(data);
+  const monthFortune = getMonthFortuneText(data);
+  return {
+    month: monthFortune || (annualLabel ? annualLabel + '：' + annualRationale : '月运/年运作为行业风格先验，不直接给买卖指令。'),
+    day: dayText + '，盘面语义为' + tone + '；先看' + top + '是否获得市场确认。',
+    action: '月运给方向假设，日报用指数、宽度、量价和风险触发做确认；未确认时只进观察池，不进入操作结论。'
+  };
+}
+
+function getMonthFortuneText(data) {
+  const bazi = data.bazi || {};
+  const month = (bazi.month_gan || '') + (bazi.month_zhi || '');
+  if (!month.trim()) return '';
+  const zhi = bazi.month_zhi || '';
+  if (zhi === '未') {
+    return month + '月：火气入土，市场更看重业绩验证、现金流、订单落地和资产负债表；题材方向必须有数据确认才升级。';
+  }
+  if (zhi === '午' || zhi === '巳') {
+    return month + '月：火势偏旺，成长和题材容易活跃，但需要用成交量和宽度过滤追高风险。';
+  }
+  if (zhi === '申' || zhi === '酉') {
+    return month + '月：金气偏强，偏向金融、硬件、制造和出清逻辑，同时警惕高估值回撤。';
+  }
+  if (zhi === '亥' || zhi === '子') {
+    return month + '月：水气偏强，偏向流动性、外部变量和防守观察，进攻信号需要更强确认。';
+  }
+  if (zhi === '寅' || zhi === '卯') {
+    return month + '月：木气生发，偏向成长、医药、内容和新业务萌芽，但不追没有兑现的数据故事。';
+  }
+  return month + '月：月运只作为行业风格假设，最终以市场宽度、量价和风险触发确认。';
+}
+
+function renderMysticInvestmentGuide(data) {
+  const signal = getMysticSignalText(data);
+  const topIndustries = (data.industries || []).slice(0, 3);
+  let html = '<section class="mystic-guide-section">';
+  html += '<div class="section-header"><h2>月运怎么用</h2><span>这里解释“为什么进观察池”，顶部只给执行结论</span></div>';
+  html += '<div class="mystic-flow">';
+  html += '<div class="mystic-step"><span>1</span><strong>先假设</strong><p>' + escapeHtml(signal.month) + '</p></div>';
+  html += '<div class="mystic-step"><span>2</span><strong>再验证</strong><p>只看盘面有没有给证据：市场宽度是否转强、成交/换手是否跟上、候选行业是否跑赢大盘。</p></div>';
+  html += '<div class="mystic-step"><span>3</span><strong>最后处理</strong><p>验证通过才升级为重点跟踪；没有验证就只放观察池，不扩大仓位、不追高。</p></div>';
+  html += '</div>';
+  if (topIndustries.length) {
+    html += '<div class="plain-candidate-flow">';
+    topIndustries.forEach(function(item) {
+      html += '<article class="plain-candidate-card">';
+      html += '<h3>' + escapeHtml(item.name || '-') + '</h3>';
+      html += '<p><strong>为什么先看：</strong>' + escapeHtml(getIndustryPlainReason(item)) + '</p>';
+      html += '<p><strong>什么算确认：</strong>' + escapeHtml(getIndustryUpgradeRule(item)) + '</p>';
+      html += '<p><strong>没确认怎么办：</strong>' + escapeHtml(getIndustryDowngradeRule(item)) + '</p>';
+      html += '</article>';
+    });
+    html += '</div>';
+  }
+  html += '<p class="subtle-note">备注：月运只决定“先看哪些方向”，不决定“买不买”。真正动作仍由宽度、量能、趋势和风险触发决定。</p>';
+  html += '</section>';
+  return html;
+}
+
+function getIndustryPlainReason(item) {
+  const element = item.element_profile || item.element_name || '行业属性';
+  const cycle = item.current_cycle ? '，处在' + item.current_cycle + '阶段' : '';
+  return '月运偏向能兑现、能落地的方向；' + (item.name || '该行业') + '当前模型属性为' + element + cycle + '，所以先放入候选观察。';
+}
+
+function getIndustryUpgradeRule(item) {
+  const vars = (item.key_variables || []).slice(0, 3).join('、');
+  const base = '行业指数/ETF放量、相对大盘更强，且市场宽度不继续恶化';
+  return vars ? base + '；同时观察' + vars + '这些基本变量有没有正反馈。' : base + '。';
+}
+
+function getIndustryDowngradeRule(item) {
+  const pressure = item.pressure_test || {};
+  const risks = (pressure.active_risks || []).slice(0, 2).join('、');
+  if (risks) return '只观察不追高；若出现' + risks + '，从候选池降级。';
+  return '只观察不追高；如果行业没有持续放量、没有跑赢大盘，就不进入操作结论。';
+}
+
+function calcPct(part, total) {
+  const p = Number(part);
+  const t = Number(total);
+  if (!Number.isFinite(p) || !Number.isFinite(t) || t === 0) return '-';
+  return (p / t * 100).toFixed(1) + '%';
+}
+
+function renderBreadthBars(breadth) {
+  if (!breadth || !Number.isFinite(Number(breadth.total)) || Number(breadth.total) <= 0) return '';
+  const rows = [
+    { label: '上涨', value: Number(breadth.up || 0), cls: 'positive' },
+    { label: '下跌', value: Number(breadth.down || 0), cls: 'negative' },
+    { label: '平盘', value: Number(breadth.flat || 0), cls: 'neutral' }
+  ];
+  let html = '<div class="breadth-bars">';
+  rows.forEach(function(row) {
+    const pct = Number(breadth.total) ? row.value / Number(breadth.total) * 100 : 0;
+    html += '<div class="breadth-bar-row"><span>' + row.label + '</span><div class="breadth-bar"><i class="' + row.cls + '" style="width:' + Math.max(1, pct).toFixed(1) + '%"></i></div><strong>' + row.value + ' / ' + pct.toFixed(1) + '%</strong></div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderNumericSnapshotSection(data) {
+  const breadth = data.market_breadth || {};
+  const limits = data.limit_stocks || {};
+  const hasBreadth = Number.isFinite(Number(breadth.total)) && Number(breadth.total) > 0;
+  const hasLimits = Array.isArray(limits.up) || Array.isArray(limits.down);
+  if (!hasBreadth && !hasLimits && !(data.industries || []).length) return '';
+
+  let html = '<section class="numeric-snapshot-section">';
+  html += '<div class="section-header"><h2>关键数字面板</h2><span>数字先表格化，趋势另看历史图</span></div>';
+  html += '<div class="numeric-grid">';
+  if (hasBreadth) {
+    html += '<div class="numeric-card">';
+    html += '<h3>市场宽度</h3>';
+    html += '<table class="compact-data-table"><tbody>';
+    html += '<tr><th>上涨</th><td>' + Number(breadth.up || 0) + '</td><td>' + calcPct(breadth.up, breadth.total) + '</td></tr>';
+    html += '<tr><th>下跌</th><td>' + Number(breadth.down || 0) + '</td><td>' + calcPct(breadth.down, breadth.total) + '</td></tr>';
+    html += '<tr><th>平盘</th><td>' + Number(breadth.flat || 0) + '</td><td>' + calcPct(breadth.flat, breadth.total) + '</td></tr>';
+    html += '</tbody></table>';
+    html += renderBreadthBars(breadth);
+    html += '</div>';
+  }
+  if (hasLimits) {
+    html += '<div class="numeric-card">';
+    html += '<h3>涨跌停</h3>';
+    html += '<table class="compact-data-table"><tbody>';
+    html += '<tr><th>涨停样本</th><td>' + ((limits.up || []).length) + '</td><td>' + escapeHtml((limits.up || []).slice(0, 3).map(function(i) { return i.name; }).filter(Boolean).join('、') || '-') + '</td></tr>';
+    html += '<tr><th>跌停样本</th><td>' + ((limits.down || []).length) + '</td><td>' + escapeHtml((limits.down || []).slice(0, 3).map(function(i) { return i.name; }).filter(Boolean).join('、') || '-') + '</td></tr>';
+    html += '</tbody></table>';
+    html += '</div>';
+  }
+  if ((data.industries || []).length) {
+    html += '<div class="numeric-card">';
+    html += '<h3>行业评分 Top5</h3>';
+    html += renderIndustryScoreTable((data.industries || []).slice(0, 5));
+    html += '</div>';
+  }
+  html += '</div>';
+  html += '<p class="subtle-note">备注：盘中实时数据可能延迟或缺口，表格只展示已返回的有效字段。</p>';
+  html += '</section>';
+  return html;
+}
+
+function renderIndustryScoreTable(industries) {
+  if (!industries || !industries.length) return '';
+  let html = '<table class="compact-data-table industry-score-table"><thead><tr><th>行业</th><th>模型分</th><th>主要依据</th><th>强弱条</th></tr></thead><tbody>';
+  industries.forEach(function(item) {
+    const score = Number.isFinite(Number(item.factor_score)) ? Number(item.factor_score) : Number(item.rating || 0) * 20;
+    html += '<tr>';
+    html += '<td><strong>' + escapeHtml(item.name || '-') + '</strong></td>';
+    html += '<td>' + (Number.isFinite(score) ? score.toFixed(1) : '-') + '</td>';
+    html += '<td>' + escapeHtml(item.element_profile || item.element_name || '-') + '</td>';
+    html += '<td><div class="score-bar"><i style="width:' + Math.max(0, Math.min(100, score || 0)).toFixed(1) + '%"></i></div></td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  html += '<p class="subtle-note compact-note">强弱条只是候选池内部排序，不是上涨概率，也不是任务进度。</p>';
+  return html;
+}
+
+function formatYi(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  const yi = Math.abs(n) > 1000000 ? n / 100000000 : n;
+  return (yi >= 0 ? '+' : '') + yi.toFixed(2) + '亿';
+}
+
+function getBreadthBalancePct(marketBreadth) {
+  if (!marketBreadth) return NaN;
+  const up = Number(marketBreadth.up || 0);
+  const down = Number(marketBreadth.down || 0);
+  const total = Number(marketBreadth.total || (up + down + Number(marketBreadth.flat || 0)));
+  if (!total) return NaN;
+  return ((up - down) / total) * 100;
+}
+
+function buildVolumeAnalysis(data) {
+  const momentum = data.market_momentum || {};
+  const turnover = momentum.turnover || {};
+  const turnoverRate = Number(turnover.marketRate);
+  const breadthBalance = getBreadthBalancePct(data.market_breadth);
+  const mainFlow = Number(momentum.mainForce && momentum.mainForce.netInflow);
+  const etfFlow = Number(momentum.etfFlow && momentum.etfFlow.netInflow);
+  const hasTurnover = Number.isFinite(turnoverRate);
+  const hasMainFlow = Number.isFinite(mainFlow);
+  const hasEtfFlow = Number.isFinite(etfFlow);
+  const highTurnover = hasTurnover && turnoverRate >= 3;
+  const lowTurnover = hasTurnover && turnoverRate < 1.5;
+  const weakBreadth = Number.isFinite(breadthBalance) && breadthBalance < -8;
+  const strongBreadth = Number.isFinite(breadthBalance) && breadthBalance > 8;
+  const mainOutflow = hasMainFlow && mainFlow < 0;
+  const mainInflow = hasMainFlow && mainFlow > 0;
+  const etfInflow = hasEtfFlow && etfFlow > 0;
+
+  let level = 'neutral';
+  let title = '量能等待确认';
+  let summary = '当前量能数据不足或方向不清，暂不把量能作为加仓依据。';
+  let action = '保持观察，等成交活跃度、宽度和主力资金同时改善。';
+
+  if (lowTurnover) {
+    level = 'weak';
+    title = '缩量观察';
+    summary = '全市场换手偏低，说明成交活跃度不足，行情更容易反复。';
+    action = '不追涨，只看回踩后能否放量。';
+  } else if (highTurnover && weakBreadth && mainOutflow) {
+    level = 'warning';
+    title = '放量分歧，承接偏弱';
+    summary = '成交活跃，但上涨家数占优不足，同时主力净流出，说明量能更多来自分歧和换手，不是顺畅进攻。';
+    action = '不扩大仓位；候选行业只做观察，等宽度修复或主力流出收敛。';
+  } else if (highTurnover && strongBreadth && mainInflow) {
+    level = 'strong';
+    title = '量价配合较好';
+    summary = '换手活跃，市场宽度和主力资金同步改善，量能对进攻方向有支持。';
+    action = '可按仓位纪律跟踪强势行业延续性，但仍不追首波拉升。';
+  } else if (highTurnover && etfInflow && !mainInflow) {
+    level = 'mixed';
+    title = '指数资金托底，个股承接一般';
+    summary = '换手活跃且 ETF 有净流入，但主力资金没有同步转强，说明更像指数/ETF 资金托底。';
+    action = '优先看 ETF 和行业龙头，不把小票冲高当作普涨确认。';
+  } else if (highTurnover) {
+    level = 'mixed';
+    title = '有量，但方向未完全确认';
+    summary = '全市场换手活跃，但还需要结合宽度和资金方向判断这是真进攻还是高位分歧。';
+    action = '只提高观察优先级，不单独因为有量就加仓。';
+  }
+
+  return { level, title, summary, action, turnoverRate, breadthBalance, mainFlow, etfFlow, active: Array.isArray(turnover.active) ? turnover.active : [] };
+}
+
+function renderVolumeAnalysisSection(data) {
+  const analysis = buildVolumeAnalysis(data || {});
+  if (!Number.isFinite(analysis.turnoverRate) && !analysis.active.length) return '';
+  let html = '<section class="volume-analysis-section volume-' + analysis.level + '">';
+  html += '<div class="section-header"><h2>量能分析</h2><span>看成交是否支持当前策略</span></div>';
+  html += '<div class="volume-summary"><strong>' + escapeHtml(analysis.title) + '</strong><p>' + escapeHtml(analysis.summary) + '</p><small>' + escapeHtml(analysis.action) + '</small></div>';
+  html += '<div class="volume-metrics">';
+  html += '<div><span>全市场换手</span><strong>' + escapeHtml(formatMetricValue(analysis.turnoverRate, '%')) + '</strong><small>成交活跃度</small></div>';
+  html += '<div><span>宽度差</span><strong>' + escapeHtml(formatMetricValue(analysis.breadthBalance, '%')) + '</strong><small>上涨家数 - 下跌家数</small></div>';
+  html += '<div><span>主力净流入</span><strong>' + escapeHtml(formatYi(analysis.mainFlow)) + '</strong><small>承接强弱</small></div>';
+  html += '<div><span>ETF净流入</span><strong>' + escapeHtml(formatYi(analysis.etfFlow)) + '</strong><small>指数/行业配置意愿</small></div>';
+  html += '</div>';
+  if (analysis.active.length) {
+    html += '<details class="volume-detail"><summary>查看高换手样本</summary>';
+    html += '<table class="compact-data-table"><thead><tr><th>标的</th><th>涨跌幅</th><th>换手率</th><th>成交额</th></tr></thead><tbody>';
+    analysis.active.slice(0, 5).forEach(function(item) {
+      html += '<tr><td>' + escapeHtml(item.name || item.code || '-') + '</td><td>' + escapeHtml(formatMetricValue(item.changePercent, '%')) + '</td><td>' + escapeHtml(formatMetricValue(item.turnoverRate, '%')) + '</td><td>' + escapeHtml(formatYi(item.amount)) + '</td></tr>';
+    });
+    html += '</tbody></table></details>';
+  }
+  html += '<p class="subtle-note">备注：量能不是买点本身。只有量能、市场宽度、资金方向和候选行业走势同时改善，才算对加仓有支持。</p>';
+  html += '</section>';
+  return html;
+}
+
+function renderHistoricalTrendSection(reportType) {
+  return '<section class="trend-history-section">'
+    + '<div class="section-header"><h2>策略变量趋势</h2><span>跟踪影响仓位和进攻/防守切换的变量</span></div>'
+    + '<div id="reportTrendChart" class="trend-chart loading-chart">历史数据加载中...</div>'
+    + '<p class="subtle-note">备注：顶部给今天的执行结论，这里看最近几次日报的宽度、换手、资金是否连续改善。</p>'
+    + '</section>';
+}
+
+async function loadReportTrendChart(reportType) {
+  const el = document.getElementById('reportTrendChart');
+  if (!el) return;
+  try {
+    const res = await fetch(`${API_BASE}/reports?page=1&pageSize=60`);
+    if (!res.ok) throw new Error('trend fetch failed');
+    const payload = await res.json();
+    const rows = (payload.data || [])
+      .filter(function(row) { return !reportType || row.report_type === reportType; })
+      .sort(function(a, b) { return String(a.report_date).localeCompare(String(b.report_date)); })
+      .slice(-12);
+    if (rows.length < 2) {
+      el.classList.remove('loading-chart');
+      el.innerHTML = '<div class="empty-state compact">历史样本不足，暂不绘制趋势图。</div>';
+      return;
+    }
+    const trendRows = rows.map(buildStrategyTrendRow).filter(function(row) {
+      return row && (Number.isFinite(row.breadthBalance) || Number.isFinite(row.turnover) || Number.isFinite(row.mainFlowYi) || Number.isFinite(row.etfFlowYi));
+    });
+    if (trendRows.length < 2) {
+      el.classList.remove('loading-chart');
+      el.innerHTML = '<div class="empty-state compact">策略变量历史样本不足，暂不绘制趋势图。</div>';
+      return;
+    }
+    el.classList.remove('loading-chart');
+    el.innerHTML = renderStrategyTrendPanels(trendRows);
+  } catch (err) {
+    el.classList.remove('loading-chart');
+    el.innerHTML = '<div class="empty-state compact">历史趋势加载失败。</div>';
+  }
+}
+
+function parseMaybeJson(value) {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(value); } catch (e) { return null; }
+}
+
+function buildStrategyTrendRow(row) {
+  const breadth = parseMaybeJson(row.market_breadth_json) || row.market_breadth || {};
+  const momentum = parseMaybeJson(row.market_momentum_json) || row.market_momentum || {};
+  const up = Number(breadth.up || 0);
+  const down = Number(breadth.down || 0);
+  const total = Number(breadth.total || (up + down + Number(breadth.flat || 0)));
+  const breadthBalance = total > 0 ? (up - down) / total * 100 : NaN;
+  const mainFlowYi = isUsableTrendFlow(momentum.mainForce, momentum) ? Number(momentum.mainForce.netInflow) / 100000000 : NaN;
+  const etfFlowYi = isUsableTrendFlow(momentum.etfFlow, momentum) ? Number(momentum.etfFlow.netInflow) / 100000000 : NaN;
+  const turnover = isUsableTurnover(momentum.turnover, momentum) && Number.isFinite(Number(momentum.turnover.marketRate))
+    ? Number(momentum.turnover.marketRate)
+    : NaN;
+  return {
+    report_date: row.report_date,
+    breadthBalance,
+    turnover,
+    mainFlowYi,
+    etfFlowYi,
+    hs300Change: Number(row.hs300_change)
+  };
+}
+
+function isUsableTrendFlow(flow, momentum) {
+  if (!flow || !Number.isFinite(Number(flow.netInflow))) return false;
+  const value = Number(flow.netInflow);
+  const leaders = Array.isArray(flow.leaders) ? flow.leaders : [];
+  const summary = String(momentum && momentum.summary || '');
+  if (value === 0 && leaders.length === 0 && /未返回|暂无|不可用|不再公开/.test(summary)) return false;
+  return true;
+}
+
+function isUsableTurnover(turnover, momentum) {
+  if (!turnover || !Number.isFinite(Number(turnover.marketRate))) return false;
+  const value = Number(turnover.marketRate);
+  const active = Array.isArray(turnover.active) ? turnover.active : [];
+  const summary = String(momentum && momentum.summary || '');
+  if (value === 0 && active.length === 0 && /未返回|暂无|不可用/.test(summary)) return false;
+  return true;
+}
+
+function renderStrategyTrendPanels(rows) {
+  const panels = [
+    { key: 'breadthBalance', label: '市场宽度差', color: '#2563eb', unit: '%', help: '上涨家数减下跌家数，占全市场比例。越高说明可参与范围越宽。' },
+    { key: 'turnover', label: '全市场换手率', color: '#7c3aed', unit: '%', help: '近似看量能活跃度，过低时不支持激进扩仓。' },
+    { key: 'mainFlowYi', label: '主力净流入', color: '#dc2626', unit: '亿', help: '主力资金净额，连续转弱时降低进攻等级。' },
+    { key: 'etfFlowYi', label: 'ETF净流入', color: '#16a34a', unit: '亿', help: 'ETF资金方向，辅助判断机构/被动资金是否配合。' }
+  ].filter(function(panel) {
+    return rows.some(function(row) { return Number.isFinite(row[panel.key]); });
+  });
+  let html = '<div class="trend-panels">';
+  panels.forEach(function(panel) {
+    html += '<div class="mini-trend-card">';
+    html += '<div class="mini-trend-title"><strong>' + escapeHtml(panel.label) + '</strong><span>' + escapeHtml(panel.help) + '</span></div>';
+    html += renderMetricTrendSvg(rows, panel);
+    html += '</div>';
+  });
+  html += '</div>';
+  html += renderTrendLatestTable(rows[rows.length - 1]);
+  return html;
+}
+
+function renderMetricTrendSvg(rows, panel) {
+  const width = 680;
+  const height = 160;
+  const pad = { left: 44, right: 16, top: 16, bottom: 34 };
+  const values = rows.map(function(row) { return Number(row[panel.key]); }).filter(Number.isFinite);
+  const min = Math.min(0, Math.min.apply(null, values));
+  const max = Math.max(0, Math.max.apply(null, values));
+  const x = function(index) {
+    if (rows.length === 1) return pad.left;
+    return pad.left + index * (width - pad.left - pad.right) / (rows.length - 1);
+  };
+  const y = function(value) {
+    return pad.top + (max - value) * (height - pad.top - pad.bottom) / (max - min || 1);
+  };
+  const zeroY = y(0);
+  let svg = '<svg class="trend-svg mini" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="' + escapeHtml(panel.label) + '趋势">';
+  svg += '<line x1="' + pad.left + '" y1="' + zeroY.toFixed(1) + '" x2="' + (width - pad.right) + '" y2="' + zeroY.toFixed(1) + '" class="zero-line"></line>';
+  svg += '<line x1="' + pad.left + '" y1="' + pad.top + '" x2="' + pad.left + '" y2="' + (height - pad.bottom) + '" class="axis-line"></line>';
+  svg += '<line x1="' + pad.left + '" y1="' + (height - pad.bottom) + '" x2="' + (width - pad.right) + '" y2="' + (height - pad.bottom) + '" class="axis-line"></line>';
+  [min, 0, max].forEach(function(v) {
+    svg += '<text x="6" y="' + (y(v) + 4).toFixed(1) + '" class="axis-text">' + escapeHtml(formatMetricValue(v, panel.unit)) + '</text>';
+  });
+  const points = rows.map(function(row, index) {
+    const value = Number(row[panel.key]);
+    return Number.isFinite(value) ? x(index).toFixed(1) + ',' + y(value).toFixed(1) : null;
+  }).filter(Boolean);
+  if (points.length > 1) {
+    svg += '<polyline points="' + points.join(' ') + '" fill="none" stroke="' + panel.color + '" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></polyline>';
+  }
+  rows.forEach(function(row, index) {
+    const value = Number(row[panel.key]);
+    if (!Number.isFinite(value)) return;
+    svg += '<circle cx="' + x(index).toFixed(1) + '" cy="' + y(value).toFixed(1) + '" r="3" fill="' + panel.color + '"><title>' + escapeHtml(row.report_date + ' ' + panel.label + ' ' + formatMetricValue(value, panel.unit)) + '</title></circle>';
+  });
+  rows.forEach(function(row, index) {
+    if (index % Math.ceil(rows.length / 6) !== 0 && index !== rows.length - 1) return;
+    svg += '<text x="' + x(index).toFixed(1) + '" y="' + (height - 18) + '" text-anchor="middle" class="axis-text">' + escapeHtml(String(row.report_date).slice(5)) + '</text>';
+  });
+  svg += '</svg>';
+  return svg;
+}
+
+function renderTrendLatestTable(row) {
+  if (!row) return '';
+  return '<table class="compact-data-table trend-latest-table"><tbody>'
+    + '<tr><th>最新宽度差</th><td>' + escapeHtml(formatMetricValue(row.breadthBalance, '%')) + '</td><td>正值越大，说明上涨家数越占优。</td></tr>'
+    + '<tr><th>最新换手率</th><td>' + escapeHtml(formatMetricValue(row.turnover, '%')) + '</td><td>量能活跃度参考，不能单独代表买点。</td></tr>'
+    + '<tr><th>主力净流入</th><td>' + escapeHtml(formatMetricValue(row.mainFlowYi, '亿')) + '</td><td>连续为负时，候选方向只观察不追。</td></tr>'
+    + '<tr><th>ETF净流入</th><td>' + escapeHtml(formatMetricValue(row.etfFlowYi, '亿')) + '</td><td>辅助看资金是否愿意通过指数/行业 ETF 配置。</td></tr>'
+    + '</tbody></table>';
+}
+
+function formatMetricValue(value, unit) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  const sign = n > 0 ? '+' : '';
+  return sign + n.toFixed(unit === '亿' ? 1 : 2) + unit;
+}
+
 function formatMetricPct(value, digits) {
   const n = Number(value);
   if (!Number.isFinite(n)) return '-';
@@ -805,6 +1435,39 @@ function renderBacktestCalibrationSection(run) {
   return html;
 }
 
+function isVariableUnavailable(item) {
+  const status = String(item.status || '');
+  const value = String(item.value || '');
+  if (/pending|todo|待接入|coming/i.test(status)) return true;
+  if (/待接入|暂未|暂无|未返回|不再公开|coming-source|pending/.test(value)) return true;
+  if (item.group === 'fund' && /主力\+0\.00亿，ETF\+0\.00亿/.test(value) && /未返回/.test(value)) return true;
+  return false;
+}
+
+function buildVariableSummary(variables) {
+  const ready = variables.filter(function(item) { return !isVariableUnavailable(item); });
+  const market = ready.find(function(item) { return item.group === 'market'; });
+  const breadth = ready.find(function(item) { return item.name === '市场宽度'; });
+  const risk = ready.find(function(item) { return item.group === 'risk'; });
+  const industry = ready.find(function(item) { return item.group === 'industry'; });
+  const parts = [];
+  if (market) parts.push(market.name + '：' + market.value);
+  if (breadth) parts.push('宽度：' + breadth.value);
+  if (industry) parts.push(industry.value);
+  if (risk) parts.push('风险：' + String(risk.value || '').replace(/^事实：/, '').slice(0, 90));
+  return parts.join('；') || '当前主要依据来自指数、行业评分、市场宽度和风险场景；未接入或未返回的数据不进入主判断。';
+}
+
+function renderVariableCard(item, groupNames) {
+  const statusClass = item.status === 'ready' ? 'ready' : item.status === 'partial' ? 'partial' : 'pending';
+  let html = '<div class="key-variable-card ' + statusClass + '">';
+  html += '<div class="key-variable-meta"><span>' + escapeHtml(groupNames[item.group] || item.group || '变量') + '</span><small>' + escapeHtml(item.source || '') + '</small></div>';
+  html += '<strong>' + escapeHtml(item.name || '-') + '</strong>';
+  html += '<p>' + escapeHtml(item.value || '待接入数据源') + '</p>';
+  html += '</div>';
+  return html;
+}
+
 function renderKeyVariablesSection(snapshot) {
   const variables = (snapshot.variables || []).filter(Boolean);
   if (!variables.length) return '';
@@ -819,21 +1482,43 @@ function renderKeyVariablesSection(snapshot) {
     incident: '事件',
     risk: '风险'
   };
+  const primaryVariables = variables.filter(function(item) { return !isVariableUnavailable(item); });
+  const unavailableVariables = variables.filter(isVariableUnavailable);
+  if (!primaryVariables.length && !unavailableVariables.length) return '';
   let html = '<section class="key-variables-section">';
-  html += '<div class="section-header"><h2>关键变量</h2></div>';
-  html += '<div class="key-variable-grid">';
-  variables.slice(0, 12).forEach(item => {
-    const statusClass = item.status === 'ready' ? 'ready' : item.status === 'partial' ? 'partial' : 'pending';
-    html += '<div class="key-variable-card ' + statusClass + '">';
-    html += '<div class="key-variable-meta"><span>' + escapeHtml(groupNames[item.group] || item.group || '变量') + '</span><small>' + escapeHtml(item.source || '') + '</small></div>';
-    html += '<strong>' + escapeHtml(item.name || '-') + '</strong>';
-    html += '<p>' + escapeHtml(item.value || '待接入数据源') + '</p>';
-    html += '</div>';
-  });
-  html += '</div>';
-  html += '<p class="key-variable-note">资金、政策、天气和突发事件变量会按可用数据源动态补齐；实时源未返回时，系统会降低该变量权重，不把空值当成有效信号。</p>';
+  html += '<div class="section-header"><h2>关键变量</h2><span>先看概括，明细折叠</span></div>';
+  html += '<p class="key-variable-summary">' + escapeHtml(buildVariableSummary(variables)) + '</p>';
+  if (primaryVariables.length) {
+    html += '<details class="variable-details" open><summary>已纳入主判断的变量</summary>';
+    html += '<div class="key-variable-grid">';
+    primaryVariables.slice(0, 8).forEach(item => {
+      html += renderVariableCard(item, groupNames);
+    });
+    html += '</div></details>';
+  }
+  if (unavailableVariables.length) {
+    html += '<details class="variable-details muted-details"><summary>未接入或未返回的数据（不参与主判断）</summary>';
+    html += '<div class="key-variable-grid">';
+    unavailableVariables.slice(0, 8).forEach(item => {
+      html += renderVariableCard(item, groupNames);
+    });
+    html += '</div></details>';
+  }
+  html += '<p class="key-variable-note">备注：资金、政策、突发事件等变量只有在数据源返回有效值时才进入主要展示和权重判断；空值不当成信号。</p>';
   html += '</section>';
   return html;
+}
+
+function hasEffectiveMomentum(momentum) {
+  if (!momentum) return false;
+  const mainLeaders = momentum.mainForce?.leaders || [];
+  const etfLeaders = momentum.etfFlow?.leaders || [];
+  const hasLeaders = mainLeaders.length > 0 || etfLeaders.length > 0;
+  const hasNonZeroFlow = ['northbound', 'mainForce', 'etfFlow'].some(function(key) {
+    return hasNumericValue(momentum[key]?.netInflow) && Math.abs(Number(momentum[key].netInflow)) > 0;
+  });
+  const hasNorthboundActivity = hasNumericValue(momentum.northbound?.dealAmountYi);
+  return hasLeaders || hasNonZeroFlow || hasNorthboundActivity;
 }
 
 function renderFactorSourceDetails(bazi) {
@@ -995,22 +1680,20 @@ function colorFive(text) {
 
 // V3 结构化八字解读（替代旧版纯文本渲染）
 function renderBaziInterpretationV3(data) {
-  let html = '<div class="interpretation-section">';
+  let inner = '';
 
   // ⑩ 日运评级（如果有）
   if (data.day_rating) {
-    html += renderDayRating(data.day_rating);
+    inner += renderDayRating(data.day_rating);
   }
 
   // ⑧ A股简报
   if (data.astock_briefing) {
-    html += renderAstockBriefing(data.astock_briefing);
+    inner += renderAstockBriefing(data.astock_briefing);
   }
 
-  // 八字解读已由上方 V3 结构化卡片完整覆盖，不再重复渲染纯文本
-
-  html += '</div>';
-  return html;
+  if (!inner) return '';
+  return '<details class="mystic-legacy-details"><summary>玄学因子明细</summary><div class="interpretation-section">' + inner + '</div></details>';
 }
 
 // ⑩ 日运星级
@@ -1242,26 +1925,31 @@ function formatMomentumNames(rows) {
 }
 
 function renderMarketMomentumSection(momentum) {
-  const hasFlow = ['northbound', 'mainForce', 'etfFlow'].some(function(key) {
-    return hasNumericValue(momentum[key]?.netInflow);
-  }) || hasNumericValue(momentum.northbound?.dealAmountYi);
+  if (!hasEffectiveMomentum(momentum)) return '';
   const hasLeaders = (momentum.mainForce?.leaders || []).length > 0 || (momentum.etfFlow?.leaders || []).length > 0;
   const turnover = momentum.turnover && momentum.turnover.marketRate !== null && momentum.turnover.marketRate !== undefined
     ? Number(momentum.turnover.marketRate).toFixed(2) + '%'
-    : '实时源未返回';
+    : '-';
   let html = '<section class="market-momentum-section">';
   html += '<div class="section-header"><h2>资金动量</h2></div>';
-  html += '<div class="momentum-grid">';
-  html += '<div class="momentum-card"><span>北向资金</span><strong>' + escapeHtml(formatNorthboundDisplay(momentum.northbound)) + '</strong></div>';
-  html += '<div class="momentum-card"><span>主力净流入</span><strong>' + formatFlowYi(momentum.mainForce?.netInflow) + '</strong></div>';
-  html += '<div class="momentum-card"><span>ETF 流向</span><strong>' + formatFlowYi(momentum.etfFlow?.netInflow) + '</strong></div>';
-  html += '<div class="momentum-card"><span>市场换手</span><strong>' + turnover + '</strong></div>';
-  html += '</div>';
-  html += '<div class="momentum-note">主力活跃：' + escapeHtml(formatMomentumNames(momentum.mainForce?.leaders)) + '；ETF流向：' + escapeHtml(formatMomentumNames(momentum.etfFlow?.leaders)) + '</div>';
-  html += '<div class="momentum-note muted">' + escapeHtml(formatNorthboundNote(momentum.northbound)) + '</div>';
-  if (!hasFlow && !hasLeaders) {
-    html += '<div class="momentum-note muted">资金实时接口未返回有效值；当前结论会降权资金变量，暂以指数、市场宽度和行业强弱辅助判断。</div>';
+  html += '<table class="compact-data-table momentum-table"><thead><tr><th>变量</th><th>当前值</th><th>说明</th></tr></thead><tbody>';
+  if (hasNumericValue(momentum.northbound?.netInflow) || hasNumericValue(momentum.northbound?.dealAmountYi)) {
+    html += '<tr><th>北向资金</th><td>' + escapeHtml(formatNorthboundDisplay(momentum.northbound)) + '</td><td>' + escapeHtml(formatNorthboundNote(momentum.northbound)) + '</td></tr>';
   }
+  if (hasNumericValue(momentum.mainForce?.netInflow) && Math.abs(Number(momentum.mainForce.netInflow)) > 0) {
+    html += '<tr><th>主力净流入</th><td>' + formatFlowYi(momentum.mainForce.netInflow) + '</td><td>' + escapeHtml(formatMomentumNames(momentum.mainForce?.leaders)) + '</td></tr>';
+  }
+  if (hasNumericValue(momentum.etfFlow?.netInflow) && Math.abs(Number(momentum.etfFlow.netInflow)) > 0) {
+    html += '<tr><th>ETF 流向</th><td>' + formatFlowYi(momentum.etfFlow.netInflow) + '</td><td>' + escapeHtml(formatMomentumNames(momentum.etfFlow?.leaders)) + '</td></tr>';
+  }
+  if (hasLeaders) {
+    html += '<tr><th>活跃方向</th><td colspan="2">主力：' + escapeHtml(formatMomentumNames(momentum.mainForce?.leaders)) + '；ETF：' + escapeHtml(formatMomentumNames(momentum.etfFlow?.leaders)) + '</td></tr>';
+  }
+  if (turnover !== '-') {
+    html += '<tr><th>市场换手</th><td>' + turnover + '</td><td>只作活跃度参考，不单独构成方向信号</td></tr>';
+  }
+  html += '</tbody></table>';
+  html += '<div class="momentum-note muted">' + escapeHtml(formatNorthboundNote(momentum.northbound)) + '</div>';
   html += '</section>';
   return html;
 }
@@ -1323,7 +2011,11 @@ function renderIndustrySection(industries) {
     <div class="industry-section">
       <div class="section-header industry-section-header">
         <h2>行业候选池</h2>
-        <span>按行业属性、资金与压力测试排序；优先看 Top5 分散组合</span>
+        <span>先筛方向，再等盘面确认，不等于买入清单</span>
+      </div>
+      <div class="industry-logic-note">
+        <strong>推荐逻辑很简单：</strong>
+        <span>月运/五行先告诉我们“本月哪些风格更容易被市场讲故事”；日报再用市场宽度、换手、资金和行业自身走势确认。确认前只观察，确认后才进入重点跟踪；分数只决定观察顺序。</span>
       </div>
       <div class="industry-grid">
   `;
@@ -1357,12 +2049,13 @@ function renderIndustrySection(industries) {
       <div class="industry-card ${ratingClass}">
         <div class="industry-header">
           <span class="industry-name">${industry.name}</span>
-          <span class="industry-rating">${stars}</span>
+          <span class="industry-rating">${industry.factor_score ? '模型分 ' + Number(industry.factor_score).toFixed(1) : stars}</span>
         </div>
-        <div class="industry-element">主属性：<span class="element-${industry.element}">${industry.element_name || industry.element}</span>${industry.element_profile ? ` · 暴露：${industry.element_profile}` : ''}${industry.factor_score ? ` · 因子分：${industry.factor_score}` : ''}</div>
-        ${keyVars.length ? `<div class="industry-v21-meta"><strong>关键变量</strong><span>${keyVars.map(escapeHtml).join(' / ')}</span></div>` : ''}
-        ${pressure.level ? `<div class="industry-pressure pressure-${pressureLevel}"><strong>压力测试</strong><span>${escapeHtml(pressureText)}</span></div>` : ''}
-        ${industry.reason ? `<div class="industry-reason">${industry.reason}</div>` : ''}
+        <div class="industry-element"><strong>为什么入池：</strong>${escapeHtml(getIndustryPlainReason(industry))}</div>
+        ${keyVars.length ? `<div class="industry-v21-meta"><strong>跟踪什么</strong><span>${keyVars.map(escapeHtml).join(' / ')}</span></div>` : ''}
+        <div class="industry-v21-meta"><strong>怎么升级</strong><span>${escapeHtml(getIndustryUpgradeRule(industry))}</span></div>
+        ${pressure.level ? `<div class="industry-pressure pressure-${pressureLevel}"><strong>什么情况降级</strong><span>${escapeHtml(pressureText)}</span></div>` : ''}
+        ${industry.reason ? `<details class="industry-detail"><summary>查看模型细节</summary><p>${escapeHtml(industry.reason)}</p>${industry.calculation_rule ? `<p>${escapeHtml(industry.calculation_rule)}</p>` : ''}</details>` : ''}
         ${stocksHtml}
       </div>
     `;
@@ -1399,12 +2092,12 @@ function renderNoonAlerts(alerts) {
 
 // 渲染关注标的四维分析（新增！）
 function renderStockAnalysisList(stocks) {
-  // 四维分析需要从后端实时获取，这里先渲染提示卡片
   let html = `<div class="stock-analysis-section">
     <div class="section-header">
-      <h2>📊 标的四维投资分析</h2>
+      <h2>📊 关注标的走势与四维分析</h2>
       <button class="btn-refresh" onclick="refreshStockAnalysis()">🔄 刷新分析</button>
     </div>
+    <p class="subtle-note">当前四维分析是规则引擎，不是大模型输出；展开后可查看走势、估值口径和四维解释。</p>
     <div class="stock-analysis-list">
   `;
 
@@ -1413,17 +2106,18 @@ function renderStockAnalysisList(stocks) {
     const alertClass = stock.alert_level === 'red' ? 'alert-red' :
                       stock.alert_level === 'yellow' ? 'alert-yellow' :
                       stock.alert_level === 'green' ? 'alert-green' : '';
-    html += `<div class="stock-analysis-card ${alertClass}" id="analysis-${stock.code}">
-      <div class="analysis-header">
+    const domId = stockDomId(stock.code);
+    html += `<details class="stock-analysis-card ${alertClass}" id="analysis-${domId}" data-stock-code="${escapeHtml(stock.code)}">
+      <summary class="analysis-header">
         <span class="stock-name">${stock.name}</span>
         <span class="stock-code">${stock.code}</span>
-        <span class="load-indicator" id="load-indicator-${stock.code}">分析加载中...</span>
-      </div>
-      <div class="analysis-loading" id="loading-${stock.code}">
+        <span class="load-indicator" id="load-indicator-${domId}">分析加载中...</span>
+      </summary>
+      <div class="analysis-loading" id="loading-${domId}">
         <div class="spinner"></div>
         <span>正在生成投资分析...</span>
       </div>
-    </div>`;
+    </details>`;
   });
 
   html += `</div></div>`;
@@ -1440,43 +2134,50 @@ function renderStockAnalysisList(stocks) {
 
 // 异步加载单只股票四维分析
 async function loadStockAnalysis(code, name) {
-  const card = document.getElementById('analysis-' + code);
-  const loading = document.getElementById('loading-' + code);
+  const domId = stockDomId(code);
+  const card = document.getElementById('analysis-' + domId);
+  const loading = document.getElementById('loading-' + domId);
   if (!card || !loading) return;
+  card.querySelectorAll('.analysis-content, .analysis-error-msg').forEach(function(node) { node.remove(); });
+  const loadIndicator = document.getElementById('load-indicator-' + domId);
+  if (loading) loading.style.display = '';
+  if (loadIndicator) loadIndicator.style.display = '';
 
   try {
-    // 10秒超时防止无限loading
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const res = await fetch(`${API_BASE}/stock/analyze?q=` + encodeURIComponent(code), { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!res.ok) throw new Error('分析失败');
-    const data = await res.json();
+    const analysisPromise = fetchJsonWithTimeout(`${API_BASE}/stock/analyze?q=` + encodeURIComponent(code), 10000);
+    const trendPromise = fetchJsonWithTimeout(`${API_BASE}/stock/trend?q=` + encodeURIComponent(code) + '&days=30', 10000).catch(function() { return null; });
+    const data = await analysisPromise;
+    const trend = await trendPromise;
 
     // 渲染四维投资分析
     let html = `<div class="analysis-content">
-      <div class="stock-quote">
-        <span class="quote-price">${data.price ? data.price.toFixed(2) : '-'}</span>
-        <span class="quote-change ${data.change >= 0 ? 'positive' : 'negative'}">${data.change >= 0 ? '+' : ''}${data.change ? data.change.toFixed(2) : '-'}%</span>
-      </div>`;
+      <div class="stock-quote-grid">
+        <div><span>现价</span><strong>${data.price ? data.price.toFixed(2) : '-'}</strong></div>
+        <div><span>涨跌幅</span><strong class="${data.changePercent >= 0 ? 'positive' : 'negative'}">${data.changePercent >= 0 ? '+' : ''}${Number.isFinite(Number(data.changePercent)) ? Number(data.changePercent).toFixed(2) : '-'}%</strong></div>
+        <div><span>PE</span><strong>${Number.isFinite(Number(data.pe)) ? Number(data.pe).toFixed(1) : '-'}</strong></div>
+        <div><span>PB</span><strong>${Number.isFinite(Number(data.pb)) ? Number(data.pb).toFixed(2) : '-'}</strong></div>
+      </div>
+      ${renderStockTrendChart(trend)}
+      <p class="stock-source-note">估值口径：腾讯行情 PE_TTM/PB，缺失时用东财妙想补充；不同平台可能使用静态PE、TTM、扣非PE或不同更新时间，所以只作参考。四维分析来源：${escapeHtml(data.data_sources?.analysis || '规则引擎，未调用大模型')}。</p>`;
 
     if (data.analysis) {
       const a = data.analysis;
-      if (a.news) html += `<div class="dim-row"><span class="dim-label news">📰 消息面</span><span class="dim-text">${a.news}</span></div>`;
-      if (a.fundamental) html += `<div class="dim-row"><span class="dim-label fundamental">📋 基本面</span><span class="dim-text">${a.fundamental}</span></div>`;
-      if (a.technical) html += `<div class="dim-row"><span class="dim-label technical">📈 技术面</span><span class="dim-text">${a.technical}</span></div>`;
-      if (a.flow) html += `<div class="dim-row"><span class="dim-label flow">💧 资金面</span><span class="dim-text">${a.flow}</span></div>`;
+      html += '<details class="stock-dimension-details" open><summary>四维分析详情</summary>';
+      if (a.news) html += `<div class="dim-row"><span class="dim-label news">消息面</span><span class="dim-text">${escapeHtml(a.news)}</span></div>`;
+      if (a.fundamental) html += `<div class="dim-row"><span class="dim-label fundamental">估值/基本面</span><span class="dim-text">${escapeHtml(a.fundamental)}</span></div>`;
+      if (a.technical) html += `<div class="dim-row"><span class="dim-label technical">技术面</span><span class="dim-text">${escapeHtml(a.technical)}</span></div>`;
+      if (a.flow) html += `<div class="dim-row"><span class="dim-label flow">资金面</span><span class="dim-text">${escapeHtml(a.flow)}</span></div>`;
+      html += '</details>';
     }
 
     html += `</div>`;
     // 只追加内容，保留原有头部（股票名称）
-    const loadIndicator = document.getElementById('load-indicator-' + code);
     if (loading) loading.style.display = 'none';
     if (loadIndicator) loadIndicator.style.display = 'none';
     card.insertAdjacentHTML('beforeend', html);
   } catch(e) {
     // hide loading, append error (preserve header)
-    const loadIndicatorErr = document.getElementById('load-indicator-' + code);
+    const loadIndicatorErr = document.getElementById('load-indicator-' + domId);
     if (loading) loading.style.display = 'none';
     if (loadIndicatorErr) loadIndicatorErr.style.display = 'none';
     if (card && !card.querySelector('.analysis-error')) {
@@ -1490,7 +2191,7 @@ function refreshStockAnalysis() {
   const stockCards = document.querySelectorAll('.stock-analysis-card');
   stockCards.forEach(function(card) {
     const id = card.id;
-    const code = id.replace('analysis-', '');
+    const code = card.dataset.stockCode || id.replace('analysis-', '');
     const name = card.querySelector('.stock-name') ? card.querySelector('.stock-name').textContent : code;
     loadStockAnalysis(code, name);
   });
@@ -1498,6 +2199,44 @@ function refreshStockAnalysis() {
 
 // 全局暴露
 window.loadStockAnalysis = loadStockAnalysis;
+
+function stockDomId(value) {
+  return String(value || '').replace(/[^A-Za-z0-9_-]/g, '_');
+}
+
+async function fetchJsonWithTimeout(url, ms) {
+  const controller = new AbortController();
+  const timeout = setTimeout(function() { controller.abort(); }, ms || 10000);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error('请求失败');
+    return await res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function renderStockTrendChart(trend) {
+  const bars = trend && Array.isArray(trend.bars) ? trend.bars.filter(function(bar) {
+    return bar && Number.isFinite(Number(bar.close));
+  }) : [];
+  if (bars.length < 2) {
+    return '<div class="stock-trend-empty">近 30 日走势暂不可用。</div>';
+  }
+  const first = Number(bars[0].close) || 1;
+  const rows = bars.map(function(bar) {
+    return {
+      date: bar.date,
+      value: (Number(bar.close) - first) / first * 100,
+      close: Number(bar.close)
+    };
+  });
+  const latest = rows[rows.length - 1];
+  return '<div class="stock-trend-box">'
+    + '<div class="stock-trend-head"><strong>近30日走势</strong><span>相对首日 ' + escapeHtml(formatMetricValue(latest.value, '%')) + '，最新收盘 ' + latest.close.toFixed(2) + '</span></div>'
+    + renderMetricTrendSvg(rows.map(function(row) { return { report_date: row.date, stockReturn: row.value }; }), { key: 'stockReturn', label: '近30日收益', color: latest.value >= 0 ? '#16a34a' : '#dc2626', unit: '%', help: '' })
+    + '</div>';
+}
 
 // 异步加载关注标的实时价格（批量调用 /stock/analyze 获取现价和涨跌幅）
 async function loadStockRealtimePrices(stocks) {
@@ -1619,6 +2358,7 @@ function goToReport(date, reportType) {
     currentReportType = reportType;
     setActiveVersionTab(reportType);
   }
+  syncReportUrlState();
   loadReportByDate(date, reportType);
 }
 
@@ -1633,6 +2373,7 @@ async function loadReportByDate(date, reportType) {
     }
     const res = await fetch(url);
     const data = await res.json();
+    currentReportData = data;
     renderReport(data);
 
     loading.style.display = 'none';
@@ -1740,7 +2481,7 @@ async function saveStock() {
   const modal = document.getElementById('stockModal');
   const stockId = modal?.dataset.stockId;
   const name = document.getElementById('stockName').value.trim();
-  const code = document.getElementById('stockCode').value.trim();
+  let code = document.getElementById('stockCode').value.trim();
   let alertLevel = document.getElementById('stockAlertLevel').value;
   let suggestion = document.getElementById('stockSuggestion').value;
   let reason = document.getElementById('stockReason').value.trim();
@@ -1752,9 +2493,6 @@ async function saveStock() {
   }
   
   // 如果只输入了代码，尝试用代码作为名称；如果只输入名称，用名称作为代码
-  const finalName = name || code;
-  const finalCode = code || name;
-
   // 获取当前日报日期
   const reportDate = document.querySelector('.report-date h2')?.textContent?.match(/(\d{4}-\d{2}-\d{2})/)?.[1];
   if (!reportDate) {
@@ -1772,14 +2510,14 @@ async function saveStock() {
     }
 
     try {
-      // 使用finalName（name或code）进行自动分析
-      const analyzeQuery = finalName || name || code;
+      const analyzeQuery = name || code;
       const res = await fetch(`${API_BASE}/stock/analyze?q=${encodeURIComponent(analyzeQuery)}`);
       if (res.ok) {
         const data = await res.json();
         // 自动填充代码
         if (!code && data.code) {
-          document.getElementById('stockCode').value = data.code;
+          code = data.code;
+          document.getElementById('stockCode').value = code;
         }
         // 自动填充建议（从分析结果推断）
         if (!suggestion && data.analysis) {
@@ -1803,6 +2541,8 @@ async function saveStock() {
     }
   }
 
+  const finalName = name || code;
+  const finalCode = code || '';
   const data = { 
     name: finalName, 
     code: finalCode, 
@@ -1826,7 +2566,12 @@ async function saveStock() {
       closeStockModal();
       loadLatest(); // 刷新日报
     } else {
-      alert('保存失败');
+      let message = '保存失败';
+      try {
+        const errPayload = await res.json();
+        if (errPayload && errPayload.error) message = errPayload.error;
+      } catch (e) {}
+      alert(message);
     }
   } catch (err) {
     console.error('保存失败:', err);

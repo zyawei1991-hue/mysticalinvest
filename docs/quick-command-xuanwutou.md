@@ -11,9 +11,17 @@
 - 本地路径：`C:\www\daily-report`
 - 线上日报：`http://117.72.58.55/daily/`
 - 项目看板：`http://117.72.58.55/daily/project-kanban.html`
+- 本地私有项目记忆：`C:\www\daily-report\.project-memory.local.json`
 - PM2 服务：`daily-report`
 - Git 远端：`https://github.com/zyawei1991-hue/mysticalinvest.git`
 - 飞书目标群：当前群 `oc_6b142fa79daf64319557a7e217100825`
+
+## 待办同步入口
+
+- 飞书多维表待办入口和字段映射记录在本地私有项目记忆文件中。
+- 本地网页看板读取 `frontend/project-kanban-data.json`；飞书 Base 作为人工查看、修改、编辑入口。
+- 同步策略：默认先预览差异，再从飞书 Base 同步到本地看板 JSON；需要反向写入时必须显式确认。
+- 不要把多维表链接或 Base 坐标写入公网看板 JSON。
 
 ## 当前推进状态
 
@@ -64,3 +72,14 @@ C:\tools\node-v18.20.8-win-x64\pm2.cmd reload daily-report
 - `.env`、webhook、LLM key、Tushare token 不得输出到群里，也不得提交 Git。
 - Tushare 当前只作为付费/授权兜底数据源；免费链路不依赖它。
 - 运行产物在 `outputs/`，聊天附件在 `attachments/`，默认不提交 Git。
+## Feishu Base Todo Sync
+
+- Local private project memory: `C:\www\daily-report\.project-memory.local.json`
+- The private memory stores the Feishu Base todo URL, base token, table id, view id, and field mapping.
+- Do not publish the Base URL or Base coordinates to the public kanban JSON.
+- Preview kanban/Base differences before any write sync:
+
+```powershell
+cd C:\www\daily-report
+C:\tools\node-v18.20.8-win-x64\node.exe bin\sync-kanban-base.js
+```

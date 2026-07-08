@@ -20,6 +20,7 @@ attachments/
 .env
 .env.*
 !.env.example
+.project-memory.local.json
 
 .DS_Store
 Thumbs.db

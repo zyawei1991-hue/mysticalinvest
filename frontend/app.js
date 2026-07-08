@@ -447,6 +447,9 @@ function renderReport(data) {
     </div>
   `;
 
+  html += renderUniversalDailyBrief(data);
+  html += '<details class="universal-detail-drawer"><summary>展开评分细节、玄学推演和数据图表</summary><div class="universal-detail-content">';
+
   if (currentPresentationMode === 'user') {
     html += renderUserDecisionGuide(data);
     html += renderMarketOverview(data);
@@ -502,6 +505,8 @@ function renderReport(data) {
   }
 
   // 关注标的
+  html += '</div></details>';
+
   html += `<div class="alerts-section">
     <div class="section-header">
       <h2>📌 关注标的</h2>
@@ -967,6 +972,269 @@ function renderUserDecisionGuide(data) {
   html += '<div class="guide-method">';
   html += '<span>五行怎么用</span>';
   html += '<strong>五行只做行业属性和时机先验；是否操作由市场宽度、资金动量、量价延续和风险触发共同确认。</strong>';
+  html += '</div>';
+  html += '</section>';
+  return html;
+}
+
+function toUniversalNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function getUniversalMarketState(data) {
+  const hs300 = toUniversalNumber(data.hs300_change) || 0;
+  const cy = toUniversalNumber(data.cy_change) || 0;
+  const breadth = data.market_breadth || {};
+  const up = Number(breadth.up || 0);
+  const down = Number(breadth.down || 0);
+  const breadthPct = getBreadthBalancePct(breadth);
+  const breadthText = up || down ? '上涨' + up + '家 / 下跌' + down + '家' : '宽度数据不足';
+  if (hs300 <= -0.8 || (Number.isFinite(breadthPct) && breadthPct < -15)) {
+    return {
+      tone: 'danger',
+      label: '市场偏弱',
+      value: breadthText,
+      note: '指数或市场宽度已经转弱，先保护仓位，不把候选方向当成进攻信号。'
+    };
+  }
+  if (hs300 > 0.4 && cy > 0 && Number.isFinite(breadthPct) && breadthPct > 8) {
+    return {
+      tone: 'positive',
+      label: '市场可试',
+      value: breadthText,
+      note: '指数、成长风格和上涨家数同步改善，候选方向可以提高跟踪优先级。'
+    };
+  }
+  if (hs300 > 0 && Number.isFinite(breadthPct) && breadthPct < 0) {
+    return {
+      tone: 'warning',
+      label: '指数强于个股',
+      value: breadthText,
+      note: '指数表现尚可，但上涨家数不占优，说明不能按普涨行情处理。'
+    };
+  }
+  return {
+    tone: 'neutral',
+    label: '中性验证',
+    value: breadthText,
+    note: '市场还没有给出明确扩仓信号，先看候选方向能否持续被资金确认。'
+  };
+}
+
+function getUniversalVolumeState(data) {
+  const volume = buildVolumeAnalysis(data || {});
+  const toneMap = {
+    strong: 'positive',
+    mixed: 'warning',
+    warning: 'danger',
+    weak: 'neutral',
+    neutral: 'neutral'
+  };
+  return {
+    tone: toneMap[volume.level] || 'neutral',
+    label: volume.title,
+    value: Number.isFinite(volume.turnoverRate) ? formatMetricValue(volume.turnoverRate, '%') : '量能数据不足',
+    note: volume.action,
+    raw: volume
+  };
+}
+
+function getUniversalRiskGate(data) {
+  const volume = buildVolumeAnalysis(data || {});
+  const mainFlow = toUniversalNumber((data.market_momentum || {}).mainForce?.netInflow);
+  const hs300 = toUniversalNumber(data.hs300_change) || 0;
+  const breadthPct = getBreadthBalancePct(data.market_breadth);
+  const largeOutflow = mainFlow !== null && mainFlow < -300 * 100000000;
+  if (volume.level === 'warning' || largeOutflow || hs300 < -1.2) {
+    return {
+      tone: 'danger',
+      label: '风险门控',
+      value: '最高只观察',
+      note: '主力、量能或指数触发风险，候选行业不能直接升级为操作方向。'
+    };
+  }
+  if (volume.level === 'mixed' || (Number.isFinite(breadthPct) && breadthPct < 0)) {
+    return {
+      tone: 'warning',
+      label: '有分歧',
+      value: '等确认',
+      note: '可以保留候选池，但需要等宽度、量能或资金修复后再提高动作等级。'
+    };
+  }
+  return {
+    tone: 'positive',
+    label: '风险可控',
+    value: '正常排序',
+    note: '没有强风险触发，按候选方向和市场确认排序跟踪。'
+  };
+}
+
+function getUniversalCandidateState(data) {
+  const industries = data.industries || [];
+  const risk = getUniversalRiskGate(data);
+  if (!industries.length) {
+    return {
+      tone: 'neutral',
+      label: '候选不足',
+      value: '等待主线',
+      note: '行业候选池还没有形成稳定排序。'
+    };
+  }
+  if (risk.tone === 'danger') {
+    return {
+      tone: 'warning',
+      label: '有方向但不进攻',
+      value: getTopIndustryNames(data, 3),
+      note: '方向先放观察池，风险门控解除前不把分数当买入理由。'
+    };
+  }
+  return {
+    tone: 'positive',
+    label: '候选池已形成',
+    value: getTopIndustryNames(data, 3),
+    note: '先看这些方向能否继续获得量能、宽度和资金确认。'
+  };
+}
+
+function renderUniversalStatusCard(item) {
+  return '<div class="universal-status-card status-' + item.tone + '">'
+    + '<span>' + escapeHtml(item.label) + '</span>'
+    + '<strong>' + escapeHtml(item.value) + '</strong>'
+    + '<small>' + escapeHtml(item.note) + '</small>'
+    + '</div>';
+}
+
+function getUniversalCandidateAction(item, data) {
+  const risk = getUniversalRiskGate(data);
+  const volume = buildVolumeAnalysis(data || {});
+  const score = Number(item.factor_score || item.score || 0);
+  const marketAdjust = Number(item.market_adjustment || 0);
+  if (risk.tone === 'danger') return '只观察，不追高';
+  if (risk.tone === 'warning') return '等确认后再升级';
+  if (marketAdjust > 0.02 || score >= 80 || volume.level === 'strong') return '重点跟踪';
+  return '观察池排序靠前';
+}
+
+function getUniversalCandidateConfirmText(item, data) {
+  const keyVars = (item.key_variables || []).slice(0, 2).filter(Boolean);
+  const marketAdjust = Number(item.market_adjustment || 0);
+  if (marketAdjust > 0.02) {
+    return '盘中样本已有确认，继续看量能和宽度是否跟上。';
+  }
+  if (keyVars.length) {
+    return '重点看' + keyVars.join('、') + '是否兑现，未兑现前不扩大仓位。';
+  }
+  return '暂时只有候选逻辑，需要市场宽度、量能和行业走势继续验证。';
+}
+
+function renderUniversalCandidateCard(item, index, data) {
+  const score = Number(item.factor_score || item.score || 0);
+  const scoreText = Number.isFinite(score) && score > 0 ? score.toFixed(1) : '-';
+  return '<article class="universal-candidate-card">'
+    + '<div class="candidate-rank">' + (index + 1) + '</div>'
+    + '<div class="candidate-body">'
+    + '<div class="candidate-title"><h3>' + escapeHtml(item.name || '-') + '</h3><span>模型分 ' + escapeHtml(scoreText) + '</span></div>'
+    + '<p><strong>为什么进池：</strong>' + escapeHtml(getIndustryPlainReason(item)) + '</p>'
+    + '<p><strong>今天看什么：</strong>' + escapeHtml(getUniversalCandidateConfirmText(item, data)) + '</p>'
+    + '<p><strong>怎么处理：</strong>' + escapeHtml(getUniversalCandidateAction(item, data)) + '</p>'
+    + '</div>'
+    + '</article>';
+}
+
+function getUniversalMonthStyle(data) {
+  const signal = getMysticSignalText(data);
+  const text = signal.month || '';
+  if (/业绩|现金流|落地|订单/.test(text)) return '业绩兑现、现金流、落地能力';
+  if (/成长|题材|科技|内容/.test(text)) return '成长题材、科技内容';
+  if (/防守|流动性|外部/.test(text)) return '防守观察、流动性变量';
+  return '月运只做行业风格先验';
+}
+
+function renderUniversalVariableGrid(data) {
+  const market = getUniversalMarketState(data);
+  const volume = getUniversalVolumeState(data);
+  const risk = getUniversalRiskGate(data);
+  const mainFlow = toUniversalNumber((data.market_momentum || {}).mainForce?.netInflow);
+  const rows = [
+    { label: '市场宽度', value: market.value, note: '决定今天是不是多数行业都能参与。', tone: market.tone },
+    { label: '量能', value: volume.value, note: volume.label + '，不是单独买点。', tone: volume.tone },
+    { label: '资金承接', value: mainFlow === null ? '资金数据不足' : formatYi(mainFlow), note: '主力净流入为负时，行业分数要降级使用。', tone: mainFlow !== null && mainFlow < 0 ? 'warning' : 'positive' },
+    { label: '月运风格', value: getUniversalMonthStyle(data), note: '决定候选池来源，不直接决定操作。', tone: 'neutral' },
+    { label: '风险门控', value: risk.value, note: risk.note, tone: risk.tone }
+  ];
+  let html = '<div class="universal-variable-grid">';
+  rows.forEach(function(row) {
+    html += '<div class="universal-variable-card status-' + row.tone + '">'
+      + '<span>' + escapeHtml(row.label) + '</span>'
+      + '<strong>' + escapeHtml(row.value) + '</strong>'
+      + '<small>' + escapeHtml(row.note) + '</small>'
+      + '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderUniversalAudienceGuide(data) {
+  const strategy = getStrategyModel(data);
+  const candidates = getTopIndustryNames(data, 3);
+  const position = compactPositionText(strategy.position);
+  const items = [
+    { name: '短线用户', focus: '今天能不能动', rule: '先看风险门控和量能，未确认时只跟踪' + candidates + '，不追第一波。' },
+    { name: '中线用户', focus: '方向是否持续', rule: '看候选池是否连续多期出现，并用量能、宽度、资金趋势验证持续性。' },
+    { name: '已持仓用户', focus: '要不要降级', rule: '持仓不在候选池或触发风险门控时，优先降仓位、降预期、等确认。' },
+    { name: '内容用户', focus: '玄学怎么落地', rule: '月运解释为什么先看这些方向，市场数据决定它能不能进入动作层。' }
+  ];
+  let html = '<div class="universal-audience-grid">';
+  items.forEach(function(item) {
+    html += '<article class="universal-audience-card">'
+      + '<span>' + escapeHtml(item.name) + '</span>'
+      + '<strong>' + escapeHtml(item.focus) + '</strong>'
+      + '<p>' + escapeHtml(item.rule) + '</p>'
+      + '</article>';
+  });
+  html += '</div>';
+  html += '<p class="universal-footnote">通用版只给一套市场温度计：短线看动作，中线看持续，持仓看降级，内容用户看逻辑。仓位建议仍以' + escapeHtml(position) + '为上限。</p>';
+  return html;
+}
+
+function renderUniversalDailyBrief(data) {
+  const strategy = getStrategyModel(data);
+  const mode = getDecisionMode(data, strategy);
+  const market = getUniversalMarketState(data);
+  const volume = getUniversalVolumeState(data);
+  const risk = getUniversalRiskGate(data);
+  const candidates = getUniversalCandidateState(data);
+  const industries = (data.industries || []).slice(0, 5);
+  let html = '<section class="universal-brief mode-' + mode.tone + '">';
+  html += '<div class="universal-hero">';
+  html += '<div class="universal-hero-copy">';
+  html += '<span class="universal-kicker">通用版日报</span>';
+  html += '<h2>' + escapeHtml(mode.label) + '，' + escapeHtml(mode.action) + '</h2>';
+  html += '<p>' + escapeHtml(buildOneLineConclusion(data, strategy)) + '</p>';
+  html += '</div>';
+  html += '<div class="universal-action-box"><span>今日动作</span><strong>' + escapeHtml(mode.action) + '</strong><small>仓位上限：' + escapeHtml(mode.position) + '</small></div>';
+  html += '</div>';
+  html += '<div class="universal-status-grid">';
+  [market, volume, risk, candidates].forEach(function(item) { html += renderUniversalStatusCard(item); });
+  html += '</div>';
+  html += '<div class="universal-block">';
+  html += '<div class="universal-block-head"><h3>候选方向池</h3><span>先看为什么进池，再看今天有没有确认</span></div>';
+  if (industries.length) {
+    html += '<div class="universal-candidate-grid">';
+    industries.forEach(function(item, index) { html += renderUniversalCandidateCard(item, index, data); });
+    html += '</div>';
+  } else {
+    html += '<div class="empty-state compact">候选方向不足，等待市场主线确认。</div>';
+  }
+  html += '</div>';
+  html += '<div class="universal-block">';
+  html += '<div class="universal-block-head"><h3>关键变量</h3><span>只保留会影响仓位、进攻和降级的变量</span></div>';
+  html += renderUniversalVariableGrid(data);
+  html += '</div>';
+  html += '<div class="universal-block">';
+  html += '<div class="universal-block-head"><h3>不同用户怎么用</h3><span>同一份日报，不同阅读角度</span></div>';
+  html += renderUniversalAudienceGuide(data);
   html += '</div>';
   html += '</section>';
   return html;

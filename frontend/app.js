@@ -448,24 +448,12 @@ function renderReport(data) {
   `;
 
   html += renderUniversalDailyBrief(data);
-  html += '<details class="universal-detail-drawer"><summary>展开评分细节、玄学推演和数据图表</summary><div class="universal-detail-content">';
+  html += '<details class="universal-detail-drawer"><summary>展开数据图表和模型明细</summary><div class="universal-detail-content">';
 
-  if (currentPresentationMode === 'user') {
-    html += renderUserDecisionGuide(data);
-    html += renderMarketOverview(data);
-  } else {
-    html += renderMarketOverview(data);
-    html += renderDecisionDashboard(data);
-  }
-  html += renderMysticInvestmentGuide(data);
   html += renderNumericSnapshotSection(data);
   html += renderVolumeAnalysisSection(data);
   html += renderHistoricalTrendSection(data.report_type);
   html += renderBacktestCalibrationSection(latestBacktestCalibration);
-
-  if (data.market_momentum) {
-    html += renderMarketMomentumSection(data.market_momentum);
-  }
 
   if (data.key_variables) {
     html += renderKeyVariablesSection(data.key_variables);
@@ -484,11 +472,6 @@ function renderReport(data) {
 
   if (data.five_elements) {
     html += renderStrategySection(data.five_elements);
-  }
-
-  // 行业推荐
-  if (data.industries && data.industries.length > 0) {
-    html += renderIndustrySection(data.industries);
   }
 
   // 午间异动（仅午间版）
@@ -544,10 +527,16 @@ function renderReport(data) {
 
   // 关注标的四维分析（新增！）
   if (data.stocks && data.stocks.length > 0) {
+    html += '<details class="stock-detail-drawer"><summary>展开关注标的走势和四维分析</summary>';
     html += renderStockAnalysisList(data.stocks);
+    html += '</details>';
   }
 
   // 五行验证
+  html += renderSupplementalDrawer(data);
+  if (false) {
+  html += '<div class="legacy-supplement-hidden" aria-hidden="true">';
+
   if (data.verification) {
     html += `
       <div class="verification-section">
@@ -575,6 +564,9 @@ function renderReport(data) {
         <div class="joke-content">${data.joke}</div>
       </div>
     `;
+  }
+
+  html += '</div>';
   }
 
   reportContent.innerHTML = html;
@@ -977,6 +969,21 @@ function renderUserDecisionGuide(data) {
   return html;
 }
 
+function renderSupplementalDrawer(data) {
+  const blocks = [];
+  if (data.verification) {
+    blocks.push('<div class="compact-supplement"><h3>五行验证</h3><p>' + escapeHtml(data.verification) + '</p></div>');
+  }
+  if (data.report_type === 'evening' && data.prediction) {
+    blocks.push('<div class="compact-supplement"><h3>明日观察</h3><p>' + escapeHtml(data.prediction) + '</p></div>');
+  }
+  if (data.joke) {
+    blocks.push('<div class="compact-supplement"><h3>段子彩蛋</h3><p>' + escapeHtml(data.joke) + '</p></div>');
+  }
+  if (!blocks.length) return '';
+  return '<details class="supplemental-detail-drawer"><summary>展开验证、展望和补充内容</summary>' + blocks.join('') + '</details>';
+}
+
 function toUniversalNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
@@ -1135,11 +1142,20 @@ function renderUniversalCandidateCard(item, index, data) {
     + '<div class="candidate-rank">' + (index + 1) + '</div>'
     + '<div class="candidate-body">'
     + '<div class="candidate-title"><h3>' + escapeHtml(item.name || '-') + '</h3><span>模型分 ' + escapeHtml(scoreText) + '</span></div>'
-    + '<p><strong>为什么进池：</strong>' + escapeHtml(getIndustryPlainReason(item)) + '</p>'
-    + '<p><strong>今天看什么：</strong>' + escapeHtml(getUniversalCandidateConfirmText(item, data)) + '</p>'
-    + '<p><strong>怎么处理：</strong>' + escapeHtml(getUniversalCandidateAction(item, data)) + '</p>'
+    + '<p>' + escapeHtml(getIndustryShortReason(item)) + '</p>'
+    + '<div class="candidate-compact-line"><span>' + escapeHtml(getUniversalCandidateConfirmText(item, data)) + '</span><strong>' + escapeHtml(getUniversalCandidateAction(item, data)) + '</strong></div>'
     + '</div>'
     + '</article>';
+}
+
+function getIndustryShortReason(item) {
+  const profile = item.element_profile || item.element_name || '';
+  const keys = (item.key_variables || []).slice(0, 2).filter(Boolean);
+  const parts = [];
+  if (profile) parts.push(profile);
+  if (keys.length) parts.push(keys.join(' / '));
+  if (item.current_cycle) parts.push(item.current_cycle);
+  return parts.length ? parts.join('；') : '月运和五行先验进入候选池，等待市场确认。';
 }
 
 function getUniversalMonthStyle(data) {
@@ -1205,7 +1221,7 @@ function renderUniversalDailyBrief(data) {
   const volume = getUniversalVolumeState(data);
   const risk = getUniversalRiskGate(data);
   const candidates = getUniversalCandidateState(data);
-  const industries = (data.industries || []).slice(0, 5);
+  const industries = (data.industries || []).slice(0, 3);
   let html = '<section class="universal-brief mode-' + mode.tone + '">';
   html += '<div class="universal-hero">';
   html += '<div class="universal-hero-copy">';
@@ -1219,7 +1235,7 @@ function renderUniversalDailyBrief(data) {
   [market, volume, risk, candidates].forEach(function(item) { html += renderUniversalStatusCard(item); });
   html += '</div>';
   html += '<div class="universal-block">';
-  html += '<div class="universal-block-head"><h3>候选方向池</h3><span>先看为什么进池，再看今天有没有确认</span></div>';
+  html += '<div class="universal-block-head"><h3>候选方向池</h3><span>只展示Top3，完整评分在明细里</span></div>';
   if (industries.length) {
     html += '<div class="universal-candidate-grid">';
     industries.forEach(function(item, index) { html += renderUniversalCandidateCard(item, index, data); });
@@ -1232,10 +1248,7 @@ function renderUniversalDailyBrief(data) {
   html += '<div class="universal-block-head"><h3>关键变量</h3><span>只保留会影响仓位、进攻和降级的变量</span></div>';
   html += renderUniversalVariableGrid(data);
   html += '</div>';
-  html += '<div class="universal-block">';
-  html += '<div class="universal-block-head"><h3>不同用户怎么用</h3><span>同一份日报，不同阅读角度</span></div>';
-  html += renderUniversalAudienceGuide(data);
-  html += '</div>';
+  html += '<details class="universal-audience-drawer"><summary>不同用户怎么用</summary>' + renderUniversalAudienceGuide(data) + '</details>';
   html += '</section>';
   return html;
 }

@@ -1,7 +1,7 @@
 {
   "project_name": "五行投资日报项目看板",
   "subtitle": "基于整体 BP 文档和飞书多维表待办的统一项目进展页",
-  "last_updated": "2026-07-08 20:35",
+  "last_updated": "2026-07-09 10:42",
   "overall_status": "in_progress",
   "overall_progress": 78,
   "current_focus": "日报默认页已压缩为通用版：结论/状态灯、候选方向Top3、关键变量、关注标的；下一步聚焦关注标的功能修复、行业评分拆解、合规说明和数据来源校验。",
@@ -43,32 +43,36 @@
       "title": "进行中",
       "items": [
         {
-          "title": "关注标的添加失败修复",
-          "owner": "工程",
-          "status": "in_progress",
-          "priority": "P0-urgent",
-          "due": "2026-07-09",
-          "detail": "用户反馈关注标的添加失败；需要复现保存接口、前端表单、错误提示和刷新链路。"
-        },
-        {
           "title": "关注标的数据来源校验",
           "owner": "数据/工程",
           "status": "in_progress",
+          "detail": "核对 PE/PB/估值、行情和走势图来源，解释为什么与常用行情软件可能不一致，并在页面标注来源。",
           "priority": "P0-urgent",
           "due": "2026-07-09",
-          "detail": "核对 PE/PB/估值、行情和走势图来源，解释为什么与常用行情软件可能不一致，并在页面标注来源。"
+          "module": "数据"
+        },
+        {
+          "title": "关注标的添加失败修复",
+          "owner": "工程",
+          "status": "in_progress",
+          "detail": "用户反馈关注标的添加失败；需要复现保存接口、前端表单、错误提示和刷新链路。",
+          "priority": "P0-urgent",
+          "due": "2026-07-09",
+          "module": "技术"
         },
         {
           "title": "日报页面标题遮挡修复",
           "owner": "前端",
           "status": "in_progress",
-          "detail": "版本切换条改为非吸顶展示，正文增加顶部间距；需要桌面和移动端页面复核。"
+          "detail": "版本切换条改为非吸顶展示，正文增加顶部间距；需要桌面和移动端页面复核。",
+          "module": "产品"
         },
         {
           "title": "下一次计划任务推送观察",
           "owner": "系统",
           "status": "in_progress",
-          "detail": "推送已切到当前群 webhook；等待计划任务验证无错群、无乱码、无旧应用身份二次推送。"
+          "detail": "推送已切到当前群 webhook；等待计划任务验证无错群、无乱码、无旧应用身份二次推送。",
+          "module": "技术"
         }
       ]
     },
@@ -77,64 +81,94 @@
       "title": "待确认",
       "items": [
         {
-          "title": "合规免责声明全链路补齐",
-          "owner": "合规/产品",
-          "status": "review",
-          "priority": "P0",
-          "due": "2026-07-10",
-          "detail": "页面、飞书卡片、分享材料、个股分析都需明确不构成投资建议，不做个股买卖指令。"
-        },
-        {
-          "title": "行业评分三层模型设计",
-          "owner": "策略/算法",
-          "status": "review",
-          "priority": "P0",
-          "due": "2026-07-10",
-          "detail": "把模型改成候选资格=月运梯队，排序分=日五行+市场确认+量能资金，最终动作=风险门控。"
-        },
-        {
-          "title": "通用日报 UI 文案密度继续优化",
-          "owner": "产品/前端",
-          "status": "review",
-          "priority": "P0",
-          "due": "2026-07-10",
-          "detail": "当前版本仍以文字为主；下一轮需要用图表、状态灯、标签和更短卡片替代大段说明。"
-        },
-        {
           "title": "日报模板标准化",
           "owner": "产品/内容",
           "status": "review",
-          "detail": "早盘、午间、盘后模板已可生成；需要确认正文口径、风险提示和用户可读性。"
-        },
-        {
-          "title": "行业多属性评分工程化",
-          "owner": "策略/算法",
-          "status": "review",
-          "detail": "行业属性、资金状态、市场强弱和风险压力已进入排序；需继续用回测校准权重边界。"
-        },
-        {
-          "title": "历史决策日志入库",
-          "owner": "工程",
-          "status": "review",
-          "detail": "日报生成和回测链路已写入关键决策信息；后续确认字段是否满足复盘和审计。"
+          "detail": "早盘、午间、盘后模板已可生成；需要确认正文口径、风险提示和用户可读性。",
+          "priority": "P0",
+          "due": "2026-07-07",
+          "module": "产品"
         },
         {
           "title": "资金动量采集",
           "owner": "数据",
           "status": "review",
-          "detail": "实时资金源已接入但稳定性不足；缺值时降权，并补日频兜底源。"
+          "detail": "实时资金源已接入但稳定性不足；缺值时降权，并补日频兜底源。",
+          "priority": "P0",
+          "due": "2026-07-09",
+          "module": "数据"
+        },
+        {
+          "title": "合规免责声明全链路补齐",
+          "owner": "合规/产品",
+          "status": "review",
+          "detail": "页面、飞书卡片、分享材料、个股分析都需明确不构成投资建议，不做个股买卖指令。",
+          "priority": "P0",
+          "due": "2026-07-10",
+          "module": "合规"
         },
         {
           "title": "流年修正自动化",
           "owner": "策略",
           "status": "review",
-          "detail": "年度节律修正已工程化；需要确认年度参数是否继续采用现有先验。"
+          "detail": "年度节律修正已工程化；需要确认年度参数是否继续采用现有先验。",
+          "priority": "P0",
+          "due": "2026-07-10",
+          "module": "数据"
+        },
+        {
+          "title": "通用日报 UI 文案密度继续优化",
+          "owner": "产品/前端",
+          "status": "review",
+          "detail": "当前版本仍以文字为主；下一轮需要用图表、状态灯、标签和更短卡片替代大段说明。",
+          "priority": "P0",
+          "due": "2026-07-10",
+          "module": "产品"
+        },
+        {
+          "title": "行业多属性评分工程化",
+          "owner": "策略/算法",
+          "status": "review",
+          "detail": "行业属性、资金状态、市场强弱和风险压力已进入排序；需继续用回测校准权重边界。",
+          "priority": "P0",
+          "due": "2026-07-10",
+          "module": "数据"
+        },
+        {
+          "title": "行业评分三层模型设计",
+          "owner": "策略/算法",
+          "status": "review",
+          "detail": "把模型改成候选资格=月运梯队，排序分=日五行+市场确认+量能资金，最终动作=风险门控。",
+          "priority": "P0",
+          "due": "2026-07-10",
+          "module": "技术"
         },
         {
           "title": "关键变量追踪",
           "owner": "数据/产品",
           "status": "review",
-          "detail": "页面已展示变量状态；政策、天气、突发事件仍是待接入源。"
+          "detail": "页面已展示变量状态；政策、天气、突发事件仍是待接入源。",
+          "priority": "P0",
+          "due": "2026-07-11",
+          "module": "数据"
+        },
+        {
+          "title": "第一批执行（P0_3/4/5/6 + P1_1/2）",
+          "owner": "WinsverCodex",
+          "status": "review",
+          "detail": "2026-07-05：P0_3/P0_4/P0_5/P0_6/P1_1/P1_2 已实现并完成 PM2、3000 API、数据库、计划任务、飞书推送、Playwright 截图验证，待群内验收。",
+          "priority": "P0",
+          "due": "2026-07-18",
+          "module": "运营"
+        },
+        {
+          "title": "历史决策日志入库",
+          "owner": "工程",
+          "status": "review",
+          "detail": "日报生成和回测链路已写入关键决策信息；后续确认字段是否满足复盘和审计。",
+          "priority": "P1",
+          "due": "2026-07-12",
+          "module": "技术"
         }
       ]
     },
@@ -143,48 +177,71 @@
       "title": "已完成",
       "items": [
         {
-          "title": "通用版日报结构上线",
-          "owner": "工程/产品",
+          "title": "飞书多维表项目看板创建",
+          "owner": "WinsverCodex",
           "status": "completed",
-          "detail": "默认页改为结论/状态灯、候选方向Top3、关键变量、关注标的；数据图表、模型明细、标的四维分析改为折叠。",
-          "priority": "done",
-          "updated_at": "2026-07-08 20:35"
+          "detail": "当前 bot 缺 base:app:create scope",
+          "priority": "P0",
+          "due": "2026-07-02",
+          "module": "运营"
+        },
+        {
+          "title": "GitHub 远端推送打通",
+          "owner": "WinsverCodex",
+          "status": "completed",
+          "detail": "需要 GitHub 写权限凭据",
+          "priority": "P0",
+          "due": "2026-07-03",
+          "module": "技术"
         },
         {
           "title": "飞书推送切到当前群 webhook",
           "owner": "工程",
           "status": "completed",
-          "detail": "早盘日报已在当前群测试发送成功；旧应用身份推送已跳过。"
-        },
-        {
-          "title": "移动端八卦图恢复",
-          "owner": "前端",
-          "status": "completed",
-          "detail": "修复 768px 以下被隐藏的问题，真实移动视口验证无横向溢出。"
-        },
-        {
-          "title": "Tushare 历史行情缓存与回测",
-          "owner": "数据",
-          "status": "completed",
-          "detail": "已缓存 2021-01-01 至 2026-07-05 的行业代理和基准行情，回测产物已落本地。"
+          "detail": "早盘日报已在当前群测试发送成功；旧应用身份推送已跳过。",
+          "module": "技术"
         },
         {
           "title": "免费实时数据源第一阶段",
           "owner": "数据",
           "status": "completed",
-          "detail": "东财 delay/full 分页接入沪深A股5535只、ETF 800只；可计算宽度、主力、换手、ETF流向、涨跌停和资金背离。"
+          "detail": "东财 delay/full 分页接入沪深A股5535只、ETF 800只；可计算宽度、主力、换手、ETF流向、涨跌停和资金背离。",
+          "module": "数据"
         },
         {
           "title": "天气风险免费源",
           "owner": "数据",
           "status": "completed",
-          "detail": "Open-Meteo 已接入重点城市极端天气信号，并映射到电力、交通、农业等行业扰动。"
+          "detail": "Open-Meteo 已接入重点城市极端天气信号，并映射到电力、交通、农业等行业扰动。",
+          "module": "数据"
+        },
+        {
+          "title": "通用版日报结构上线",
+          "owner": "工程/产品",
+          "status": "completed",
+          "detail": "默认页改为结论/状态灯、候选方向Top3、关键变量、关注标的；数据图表、模型明细、标的四维分析改为折叠。",
+          "module": "产品"
         },
         {
           "title": "项目看板固定链接",
           "owner": "协作",
           "status": "completed",
-          "detail": "独立看板页面已上线，后续项目相关任务统一更新到固定链接。"
+          "detail": "独立看板页面已上线，后续项目相关任务统一更新到固定链接。",
+          "module": "运营"
+        },
+        {
+          "title": "移动端八卦图恢复",
+          "owner": "前端",
+          "status": "completed",
+          "detail": "修复 768px 以下被隐藏的问题，真实移动视口验证无横向溢出。",
+          "module": "技术"
+        },
+        {
+          "title": "Tushare 历史行情缓存与回测",
+          "owner": "数据",
+          "status": "completed",
+          "detail": "已缓存 2021-01-01 至 2026-07-05 的行业代理和基准行情，回测产物已落本地。",
+          "module": "数据"
         }
       ]
     },
@@ -193,94 +250,117 @@
       "title": "后续待办",
       "items": [
         {
-          "title": "用户分层产品定义",
-          "owner": "产品/运营",
+          "title": "定义商业化产品边界",
+          "owner": "商业/产品",
           "status": "pending",
-          "priority": "P1",
-          "due": "2026-07-20",
-          "detail": "短线、中长线、内容用户、持仓用户分别定义信息需求、页面版本和付费路径。"
-        },
-        {
-          "title": "行业评分拆解表",
-          "owner": "策略/前端",
-          "status": "pending",
-          "priority": "P1",
-          "due": "2026-07-15",
-          "detail": "每个行业显示月运先验、日五行、市场确认、量能资金、风险门控的加减分来源。"
+          "detail": "BP P0：区分免费日报、会员增强、B2B 服务和人工咨询边界。",
+          "priority": "P0",
+          "due": "2026-07-05",
+          "module": "商业"
         },
         {
           "title": "关注标的走势图和大模型四维分析",
           "owner": "工程/AI",
           "status": "pending",
+          "detail": "关注标的展示近30日走势图；四维分析区明确规则引擎和大模型分析边界，支持折叠展开。",
           "priority": "P1",
           "due": "2026-07-15",
-          "detail": "关注标的展示近30日走势图；四维分析区明确规则引擎和大模型分析边界，支持折叠展开。"
-        },
-        {
-          "title": "补齐合规免责声明",
-          "owner": "合规",
-          "status": "pending",
-          "detail": "BP P0：明确内容仅供参考、不构成投资建议，并覆盖页面、推送卡片和分享材料。"
-        },
-        {
-          "title": "定义商业化产品边界",
-          "owner": "商业/产品",
-          "status": "pending",
-          "detail": "BP P0：区分免费日报、会员增强、B2B 服务和人工咨询边界。"
-        },
-        {
-          "title": "自有知识库一期",
-          "owner": "内容/策略/工程",
-          "status": "pending",
-          "detail": "新增 P0：建立东玄知识、行业映射、日报算法、输出规范、合规话术和案例复盘的统一知识库，供日报生成、回测解释和未来 AI 对话检索引用。"
-        },
-        {
-          "title": "行业推荐回测一期",
-          "owner": "数据/策略",
-          "status": "pending",
-          "detail": "多维表 P1：把回测目标从胜率扩展到 Rank IC、Top5 超额、Top5-Bottom5 spread 和年度稳定性。"
-        },
-        {
-          "title": "Tushare token 续期",
-          "owner": "数据/账号",
-          "status": "pending",
-          "detail": "当前临时 token 已于 2026-07-06 11:37:05 过期，盘后 daily_basic、moneyflow、fund_daily、hk_hold 需要续期后继续缓存。"
+          "module": "技术"
         },
         {
           "title": "会员权限方案设计",
           "owner": "产品",
           "status": "pending",
-          "detail": "多维表 P1：定义会员可见字段、历史回放、提醒频率和导出能力。"
+          "detail": "多维表 P1：定义会员可见字段、历史回放、提醒频率和导出能力。",
+          "priority": "P1",
+          "due": "2026-07-15",
+          "module": "产品"
+        },
+        {
+          "title": "行业评分拆解表",
+          "owner": "策略/前端",
+          "status": "pending",
+          "detail": "每个行业显示月运先验、日五行、市场确认、量能资金、风险门控的加减分来源。",
+          "priority": "P1",
+          "due": "2026-07-15",
+          "module": "技术"
+        },
+        {
+          "title": "行业推荐回测一期",
+          "owner": "数据/策略",
+          "status": "pending",
+          "detail": "多维表 P1：把回测目标从胜率扩展到 Rank IC、Top5 超额、Top5-Bottom5 spread 和年度稳定性。",
+          "priority": "P1",
+          "due": "2026-07-18",
+          "module": "数据"
         },
         {
           "title": "商业化落地页设计",
           "owner": "增长",
           "status": "pending",
-          "detail": "多维表 P1：围绕日报价值、回测证据、使用边界和转化路径设计。"
+          "detail": "多维表 P1：围绕日报价值、回测证据、使用边界和转化路径设计。",
+          "priority": "P1",
+          "due": "2026-07-20",
+          "module": "增长"
+        },
+        {
+          "title": "用户分层产品定义",
+          "owner": "产品/运营",
+          "status": "pending",
+          "detail": "短线、中长线、内容用户、持仓用户分别定义信息需求、页面版本和付费路径。",
+          "priority": "P1",
+          "due": "2026-07-20",
+          "module": "运营"
         },
         {
           "title": "种子用户测试计划",
           "owner": "运营",
           "status": "pending",
-          "detail": "多维表 P1：确定测试用户、反馈表、使用周期和留存指标。"
+          "detail": "多维表 P1：确定测试用户、反馈表、使用周期和留存指标。",
+          "priority": "P1",
+          "due": "2026-07-20",
+          "module": "运营"
         },
         {
           "title": "飞书日报推送商业化短卡",
           "owner": "产品",
           "status": "pending",
-          "detail": "多维表 P2：为群推送设计更短、更清晰的商业化版本卡片。"
-        },
-        {
-          "title": "B2B 版本需求访谈",
-          "owner": "商业",
-          "status": "pending",
-          "detail": "多维表 P2：访谈机构/投顾/社群运营方，确认团队版需求。"
+          "detail": "多维表 P2：为群推送设计更短、更清晰的商业化版本卡片。",
+          "priority": "P2",
+          "due": "2026-07-12",
+          "module": "产品"
         },
         {
           "title": "内容审核工作流设计",
           "owner": "合规/内容",
           "status": "pending",
-          "detail": "多维表 P2：定义日报发布前后的人工复核、敏感词和版本留痕。"
+          "detail": "多维表 P2：定义日报发布前后的人工复核、敏感词和版本留痕。",
+          "priority": "P2",
+          "due": "2026-07-31",
+          "module": "合规"
+        },
+        {
+          "title": "B2B 版本需求访谈",
+          "owner": "商业",
+          "status": "pending",
+          "detail": "多维表 P2：访谈机构/投顾/社群运营方，确认团队版需求。",
+          "priority": "P2",
+          "due": "2026-07-31",
+          "module": "商业"
+        },
+        {
+          "title": "自有知识库一期",
+          "owner": "内容/策略/工程",
+          "status": "pending",
+          "detail": "新增 P0：建立东玄知识、行业映射、日报算法、输出规范、合规话术和案例复盘的统一知识库，供日报生成、回测解释和未来 AI 对话检索引用。",
+          "module": "技术"
+        },
+        {
+          "title": "Tushare token 续期",
+          "owner": "数据/账号",
+          "status": "pending",
+          "detail": "当前临时 token 已于 2026-07-06 11:37:05 过期，盘后 daily_basic、moneyflow、fund_daily、hk_hold 需要续期后继续缓存。",
+          "module": "数据"
         }
       ]
     }

@@ -4,6 +4,7 @@ const { getBaZi, countFiveElements, checkRelationship, getRecommendedIndustries,
 const { getStockQuote, fetchQuote, getStockTrend } = require('./market');
 const { getProviderStatus } = require('./historicalDataProvider');
 const { loadKnowledgeBase, searchKnowledgeBase } = require('./knowledgeBase');
+const { buildIntegratedStockAnalysis } = require('./stockInsightFramework');
 
 const router = express.Router();
 
@@ -512,8 +513,8 @@ router.get('/stock/analyze', async (req, res) => {
     // 1. 获取实时行情
     const quote = await getStockQuote(q);
 
-    // 2. 生成四维分析（基于行情、估值、技术、资金）
-    const analysis = generateSimpleAnalysis(quote, q);
+    // 2. 生成融合四维分析：行业五行先验 + 价投估值 + 量价资金确认
+    const analysis = buildIntegratedStockAnalysis(quote, q, { date: req.query.date });
 
     res.json({
       name: quote.name,
@@ -524,13 +525,13 @@ router.get('/stock/analyze', async (req, res) => {
       pe: quote.pe,
       pb: quote.pb,
       netInflow: quote.netInflow,
-      analysis_source: 'rule_engine_v1',
+      analysis_source: 'stock_integrated_rule_engine_v1',
       llm_enabled: false,
       data_sources: {
         realtime: 'Tencent quote API',
         valuation: 'Tencent quote PE_TTM/PB; Eastmoney Miaoxiang fallback when available',
         flow: 'Eastmoney Miaoxiang main-force flow',
-        analysis: '规则引擎基于涨跌幅、PE/PB 和主力净流入生成，未调用大模型'
+        analysis: '规则引擎融合行业五行先验、PE_TTM/PB估值、涨跌幅和主力资金，未调用大模型'
       },
       analysis
     });

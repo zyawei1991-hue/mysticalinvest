@@ -1525,6 +1525,86 @@ main {
   border-left-color: #9b59b6;
 }
 
+.dimension-card.flow {
+  border-left-color: #16a085;
+}
+
+.stock-decision {
+  background: var(--bg-color);
+  border-left: 4px solid var(--primary-color);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+
+.stock-decision.focus {
+  border-left-color: #27ae60;
+}
+
+.stock-decision.verify,
+.stock-decision.watch {
+  border-left-color: #f39c12;
+}
+
+.stock-decision.observe {
+  border-left-color: #e74c3c;
+}
+
+.stock-decision.compact {
+  margin: 14px 0;
+  padding: 14px 16px;
+}
+
+.stock-decision-main {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.stock-decision-main span {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.stock-decision-main strong {
+  color: var(--text-primary);
+  font-size: 1.05rem;
+}
+
+.stock-decision-main small,
+.stock-decision p {
+  color: var(--text-secondary);
+}
+
+.stock-decision p {
+  margin: 6px 0 0;
+  line-height: 1.7;
+}
+
+.stock-decision-action {
+  color: var(--text-primary) !important;
+}
+
+.stock-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.stock-badges span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(108, 92, 231, 0.12);
+  color: var(--primary-color);
+  font-size: 0.82rem;
+}
+
 /* 鍗堥棿寮傚姩 */
 .noon-alert-section {
   background: linear-gradient(135deg, rgba(253, 203, 110, 0.15), rgba(253, 203, 110, 0.05));
@@ -2701,6 +2781,7 @@ footer .disclaimer {
 .dim-label.fundamental { color: #6366f1; }
 .dim-label.technical   { color: #10b981; }
 .dim-label.mystic     { color: #8b5cf6; }
+.dim-label.flow       { color: #16a085; }
 
 .dim-text { color: #374151; flex: 1; }
 
@@ -2951,6 +3032,7 @@ footer .disclaimer {
 .dim-label.fundamental { color: #0891b2; background: #ecfeff; }
 .dim-label.technical { color: #059669; background: #ecfdf5; }
 .dim-label.mystic { color: #7c3aed; background: #f5f3ff; }
+.dim-label.flow { color: #0f766e; background: #ecfdf5; }
 .dim-text { color: #4b5563; flex: 1; }
 
 /* 行业推荐标的行情 */

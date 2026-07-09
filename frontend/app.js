@@ -268,32 +268,46 @@ async function clearStockHistory() {
 // 渲染个股分析结果
 function renderStockAnalysis(data) {
   const stockResult = document.getElementById('stockResult');
+  const analysis = data.analysis || {};
+  const decision = analysis.decision || {};
+  const badges = Array.isArray(analysis.badges) ? analysis.badges : [];
 
   let html = `
     <div class="stock-header-info">
-      <h2>${data.name} <span class="stock-code">${data.code}</span></h2>
+      <h2>${escapeHtml(data.name || '-')} <span class="stock-code">${escapeHtml(data.code || '')}</span></h2>
       <div class="stock-price">
-        <span class="price">${data.price ? data.price.toFixed(2) : '-'}</span>
-        <span class="change ${data.change >= 0 ? 'positive' : 'negative'}">${data.change ? (data.change >= 0 ? '+' : '') + data.change.toFixed(2) + '%' : '-'}</span>
+        <span class="price">${Number.isFinite(Number(data.price)) ? Number(data.price).toFixed(2) : '-'}</span>
+        <span class="change ${data.change >= 0 ? 'positive' : 'negative'}">${Number.isFinite(Number(data.change)) ? (data.change >= 0 ? '+' : '') + Number(data.change).toFixed(2) + '%' : '-'}</span>
       </div>
     </div>
 
+    <div class="stock-decision ${escapeHtml(decision.level || 'watch')}">
+      <div class="stock-decision-main">
+        <span>综合门控</span>
+        <strong>${escapeHtml(decision.label || '可跟踪验证')}</strong>
+        <small>${Number.isFinite(Number(decision.score)) ? '融合分 ' + Number(decision.score).toFixed(0) : ''}</small>
+      </div>
+      <p>${escapeHtml(decision.summary || '行业先验、估值和盘面确认需要继续交叉验证。')}</p>
+      ${decision.action ? `<p class="stock-decision-action">${escapeHtml(decision.action)}</p>` : ''}
+      ${badges.length ? `<div class="stock-badges">${badges.map(item => `<span>${escapeHtml(item)}</span>`).join('')}</div>` : ''}
+    </div>
+
     <div class="four-dimensions">
-      <div class="dimension-card news">
-        <h3>📰 消息面</h3>
-        <div class="dimension-content">${data.analysis?.news || '暂无消息分析'}</div>
+      <div class="dimension-card mystic">
+        <h3>五行/行业适配</h3>
+        <div class="dimension-content">${escapeHtml(analysis.mystic || '行业五行映射待确认')}</div>
       </div>
       <div class="dimension-card fundamental">
-        <h3>📊 基本面</h3>
-        <div class="dimension-content">${data.analysis?.fundamental || '暂无基本面分析'}</div>
+        <h3>价投/基本面</h3>
+        <div class="dimension-content">${escapeHtml(analysis.fundamental || '暂无基本面分析')}</div>
       </div>
       <div class="dimension-card technical">
-        <h3>📈 技术面</h3>
-        <div class="dimension-content">${data.analysis?.technical || '暂无技术分析'}</div>
+        <h3>量价/趋势</h3>
+        <div class="dimension-content">${escapeHtml(analysis.technical || '暂无技术分析')}</div>
       </div>
       <div class="dimension-card flow">
-        <h3>💧 资金面</h3>
-        <div class="dimension-content">${data.analysis?.flow || '暂无资金分析'}</div>
+        <h3>资金/风险</h3>
+        <div class="dimension-content">${escapeHtml(analysis.flow || '暂无资金分析')}</div>
       </div>
     </div>
   `;
@@ -2443,11 +2457,25 @@ async function loadStockAnalysis(code, name) {
 
     if (data.analysis) {
       const a = data.analysis;
-      html += '<details class="stock-dimension-details" open><summary>四维分析详情</summary>';
-      if (a.news) html += `<div class="dim-row"><span class="dim-label news">消息面</span><span class="dim-text">${escapeHtml(a.news)}</span></div>`;
-      if (a.fundamental) html += `<div class="dim-row"><span class="dim-label fundamental">估值/基本面</span><span class="dim-text">${escapeHtml(a.fundamental)}</span></div>`;
-      if (a.technical) html += `<div class="dim-row"><span class="dim-label technical">技术面</span><span class="dim-text">${escapeHtml(a.technical)}</span></div>`;
-      if (a.flow) html += `<div class="dim-row"><span class="dim-label flow">资金面</span><span class="dim-text">${escapeHtml(a.flow)}</span></div>`;
+      const decision = a.decision || {};
+      const badges = Array.isArray(a.badges) ? a.badges : [];
+      if (decision.label || decision.summary) {
+        html += `<div class="stock-decision compact ${escapeHtml(decision.level || 'watch')}">
+          <div class="stock-decision-main">
+            <span>综合门控</span>
+            <strong>${escapeHtml(decision.label || '可跟踪验证')}</strong>
+            <small>${Number.isFinite(Number(decision.score)) ? '融合分 ' + Number(decision.score).toFixed(0) : ''}</small>
+          </div>
+          <p>${escapeHtml(decision.summary || '')}</p>
+          ${decision.action ? `<p class="stock-decision-action">${escapeHtml(decision.action)}</p>` : ''}
+          ${badges.length ? `<div class="stock-badges">${badges.map(item => `<span>${escapeHtml(item)}</span>`).join('')}</div>` : ''}
+        </div>`;
+      }
+      html += '<details class="stock-dimension-details" open><summary>融合四维分析详情</summary>';
+      if (a.mystic) html += `<div class="dim-row"><span class="dim-label mystic">五行/行业</span><span class="dim-text">${escapeHtml(a.mystic)}</span></div>`;
+      if (a.fundamental) html += `<div class="dim-row"><span class="dim-label fundamental">价投/基本面</span><span class="dim-text">${escapeHtml(a.fundamental)}</span></div>`;
+      if (a.technical) html += `<div class="dim-row"><span class="dim-label technical">量价/趋势</span><span class="dim-text">${escapeHtml(a.technical)}</span></div>`;
+      if (a.flow) html += `<div class="dim-row"><span class="dim-label flow">资金/风险</span><span class="dim-text">${escapeHtml(a.flow)}</span></div>`;
       html += '</details>';
     }
 

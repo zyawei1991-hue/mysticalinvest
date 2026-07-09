@@ -330,7 +330,9 @@ function scoreSwIndustries(params) {
       return sum + Number(finalExposure[element] || 0) * Number(signals.normalized[element] || 0);
     }, 0);
     const marketAdjustment = matchStrongIndustry(row, strongIndustries) ? 0.04 : 0;
-    const score = baseScore + marketAdjustment;
+    // Intraday strength is a confirmation label, not a primary ranking boost.
+    // Keep the field for explanation, but keep daily Top directions stable.
+    const score = baseScore;
     const mainElement = dominantElement(corrected.adjusted_raw);
     const pressureTest = buildPressureTest(row, corrected, marketData);
     return {

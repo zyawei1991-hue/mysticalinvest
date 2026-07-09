@@ -1,8 +1,9 @@
 const express = require('express');
 const { run, get, all, getLastInsertRowId } = require('./database');
 const { getBaZi, countFiveElements, checkRelationship, getRecommendedIndustries, calculateTenGods, analyzeMarketStrength, getMarketFavors, getEnhancedIndustries, generateBaZiInterpretation, getJianchu, getChongSha, getZiweiSihua, calculateDayRating, getLuckyDirection, getAstockBriefing } = require('./bazi');
-const { getStockQuote, fetchQuote } = require('./market');
+const { getStockQuote, fetchQuote, getStockTrend } = require('./market');
 const { getProviderStatus } = require('./historicalDataProvider');
+const { loadKnowledgeBase, searchKnowledgeBase } = require('./knowledgeBase');
 
 const router = express.Router();
 
@@ -137,6 +138,20 @@ router.get('/latest', async (req, res) => {
 router.get('/stats', (req, res) => {
   const totalRow = get('SELECT COUNT(*) as total FROM reports');
   res.json({ total_reports: totalRow ? totalRow.total : 0 });
+});
+
+router.get('/knowledge-base', (req, res) => {
+  const hasFilters = req.query.q || req.query.domain || req.query.usable_for || req.query.status || req.query.limit;
+  const payload = hasFilters
+    ? searchKnowledgeBase({
+        query: req.query.q,
+        domain: req.query.domain,
+        usable_for: req.query.usable_for,
+        status: req.query.status,
+        limit: req.query.limit
+      })
+    : loadKnowledgeBase();
+  res.json(payload);
 });
 
 router.get('/backtest/status', (req, res) => {
@@ -355,6 +370,42 @@ router.get('/reports/:date/stocks', (req, res) => {
   res.json({ data: getReportStocks(report.id) });
 });
 
+router.post('/reports/:date/stocks', (req, res) => {
+  const report = get('SELECT id FROM reports WHERE report_date = ? AND report_type = ?', [req.params.date, req.query.type || 'morning']);
+  if (!report) return res.status(404).json({ error: '未找到该日报' });
+  const { name, code, alert_level, suggestion, reason } = req.body || {};
+  const finalName = String(name || code || '').trim();
+  const finalCode = String(code || '').trim();
+  if (!finalName) return res.status(400).json({ error: '缺少标的名称或代码' });
+  run('INSERT INTO stocks (report_id, name, code, alert_level, suggestion, reason) VALUES (?, ?, ?, ?, ?, ?)',
+    [report.id, finalName, finalCode, alert_level || null, suggestion || '关注', reason || null]);
+  res.json({ success: true, id: getLastInsertRowId(), message: '标的已加入当前日报关注列表' });
+});
+
+router.put('/reports/:date/stocks/:stockId', (req, res) => {
+  const report = get('SELECT id FROM reports WHERE report_date = ? AND report_type = ?', [req.params.date, req.query.type || 'morning']);
+  if (!report) return res.status(404).json({ error: '未找到该日报' });
+  const { name, code, alert_level, suggestion, reason } = req.body || {};
+  const existing = get('SELECT id FROM stocks WHERE id = ? AND report_id = ?', [req.params.stockId, report.id]);
+  if (!existing) return res.status(404).json({ error: '未找到该标的' });
+  run(`UPDATE stocks SET
+    name = COALESCE(?, name),
+    code = COALESCE(?, code),
+    alert_level = ?,
+    suggestion = COALESCE(?, suggestion),
+    reason = COALESCE(?, reason)
+    WHERE id = ? AND report_id = ?`,
+    [name || null, code || null, alert_level || null, suggestion || null, reason || null, req.params.stockId, report.id]);
+  res.json({ success: true, message: '标的已更新' });
+});
+
+router.delete('/reports/:date/stocks/:stockId', (req, res) => {
+  const report = get('SELECT id FROM reports WHERE report_date = ? AND report_type = ?', [req.params.date, req.query.type || 'morning']);
+  if (!report) return res.status(404).json({ error: '未找到该日报' });
+  run('DELETE FROM stocks WHERE id = ? AND report_id = ?', [req.params.stockId, report.id]);
+  res.json({ success: true, message: '标的已删除' });
+});
+
 // 日报生成
 router.post('/generate', async (req, res) => {
   try {
@@ -365,7 +416,7 @@ router.post('/generate', async (req, res) => {
     else if (reportType === 'evening') date.setHours(15, 0, 0);
 
     const bazi = getBaZi(date);
-    const fiveCount = countFiveElements(bazi);
+    const fiveCount = countFiveElements(bazi, { includeHour: false });
     const tenGodsResult = calculateTenGods(bazi);
     const strengthInfo = analyzeMarketStrength(bazi, fiveCount);
     const favors = getMarketFavors(bazi, fiveCount, strengthInfo);
@@ -473,11 +524,31 @@ router.get('/stock/analyze', async (req, res) => {
       pe: quote.pe,
       pb: quote.pb,
       netInflow: quote.netInflow,
+      analysis_source: 'rule_engine_v1',
+      llm_enabled: false,
+      data_sources: {
+        realtime: 'Tencent quote API',
+        valuation: 'Tencent quote PE_TTM/PB; Eastmoney Miaoxiang fallback when available',
+        flow: 'Eastmoney Miaoxiang main-force flow',
+        analysis: '规则引擎基于涨跌幅、PE/PB 和主力净流入生成，未调用大模型'
+      },
       analysis
     });
   } catch (err) {
     console.error('个股分析失败:', err);
     res.status(500).json({ error: '分析失败', message: err.message });
+  }
+});
+
+router.get('/stock/trend', async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q) return res.status(400).json({ error: '缺少查询参数 q' });
+  try {
+    const result = await getStockTrend(q, req.query.days || 30);
+    res.json(result);
+  } catch (err) {
+    console.error('个股趋势获取失败:', err);
+    res.status(500).json({ error: '趋势获取失败', message: err.message });
   }
 });
 
@@ -584,7 +655,7 @@ async function buildReportResponse(report, stocks, analysis) {
     try {
       const baziData = JSON.parse(report.bazi_json);
       // 标准化为前端期望的扁平格式
-      const fiveCount = countFiveElements(baziData);
+      const fiveCount = countFiveElements(baziData, { includeHour: false });
       const t = fiveCount.total || 1;
       response.bazi = {
         date: baziData.year.ganzhi + "年 " + baziData.month.ganzhi + "月 " + baziData.day.ganzhi + "日",
@@ -625,7 +696,7 @@ async function buildReportResponse(report, stocks, analysis) {
     else if (reportType === 'evening') date.setHours(15, 0, 0);
 
     const bazi = getBaZi(date);
-    const fiveCount = countFiveElements(bazi);
+    const fiveCount = countFiveElements(bazi, { includeHour: false });
     const tenGodsResult = calculateTenGods(bazi);
     const strengthInfo = analyzeMarketStrength(bazi, fiveCount);
     const favors = getMarketFavors(bazi, fiveCount, strengthInfo);
@@ -668,7 +739,7 @@ async function buildReportResponse(report, stocks, analysis) {
     else if (reportType === 'evening') date.setHours(15, 0, 0);
 
     const bazi = getBaZi(date);
-    const fiveCount = countFiveElements(bazi);
+    const fiveCount = countFiveElements(bazi, { includeHour: false });
     const marketData = { hs300Change: report.hs300_change || 0, upStocks: [] };
     response.industries = getEnhancedIndustries(bazi, fiveCount, marketData);
   }

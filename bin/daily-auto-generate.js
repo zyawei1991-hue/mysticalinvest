@@ -35,12 +35,18 @@ function firstPositionalArg() {
 }
 const FORCED_REPORT_TYPE = readOption('--type') || process.env.DAILY_REPORT_TYPE || '';
 const NO_PUSH = cliArgs.includes('--no-push') || process.env.DAILY_NO_PUSH === '1';
-const REPORT_TYPE_HOUR = { morning: 9, noon: 13, evening: 15 };
+const ALLOW_MIDDAY_NOON_UPDATE = cliArgs.includes('--allow-midday-noon-update') || process.env.DAILY_ALLOW_MIDDAY_NOON_UPDATE === '1';
+const REPORT_TYPE_TIME = {
+  morning: { hour: 9, minute: 25 },
+  noon: { hour: 11, minute: 30 },
+  evening: { hour: 15, minute: 10 }
+};
 
 // 今日日期
 const today = new Date();
-if (FORCED_REPORT_TYPE && REPORT_TYPE_HOUR[FORCED_REPORT_TYPE] !== undefined) {
-  today.setHours(REPORT_TYPE_HOUR[FORCED_REPORT_TYPE], 0, 0, 0);
+if (FORCED_REPORT_TYPE && REPORT_TYPE_TIME[FORCED_REPORT_TYPE]) {
+  const reportTime = REPORT_TYPE_TIME[FORCED_REPORT_TYPE];
+  today.setHours(reportTime.hour, reportTime.minute, 0, 0);
 }
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -49,6 +55,21 @@ function formatLocalDate(date) {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 const dateStr = formatLocalDate(today);
+
+function resolveReportType(now) {
+  const hour = now.getHours();
+  if (FORCED_REPORT_TYPE) return FORCED_REPORT_TYPE;
+  if (hour >= 11 && hour < 14) return 'noon';
+  if (hour >= 15) return 'evening';
+  return 'morning';
+}
+
+function shouldSkipAutomaticNoonOverwrite(now, reportType) {
+  return !FORCED_REPORT_TYPE
+    && reportType === 'noon'
+    && now.getHours() >= 12
+    && !ALLOW_MIDDAY_NOON_UPDATE;
+}
 
 // 配置。FEISHU_WEBHOOK_ENABLED=1 时由本脚本使用群 webhook 推送；否则计划任务可回退到应用身份推送。
 const WEBHOOK_URL = NO_PUSH ? '' : (firstPositionalArg() || (process.env.FEISHU_WEBHOOK_ENABLED === '1' ? process.env.FEISHU_WEBHOOK : '') || '');
@@ -535,14 +556,16 @@ async function generateDailyData() {
 
   // 时段判断
   const hour = today.getHours();
-  let reportType = FORCED_REPORT_TYPE || 'morning';
+  let reportType = resolveReportType(today);
   let cardTitle = `五行投资早盘日报 ${dateStr}`;
-  if (!FORCED_REPORT_TYPE && hour >= 11 && hour < 14) {
-    reportType = 'noon';
+  if (reportType === 'noon') {
     cardTitle = `五行投资午间日报 ${dateStr}`;
-  } else if (!FORCED_REPORT_TYPE && hour >= 15) {
-    reportType = 'evening';
+  } else if (reportType === 'evening') {
     cardTitle = `五行投资盘后总结 ${dateStr}`;
+  }
+  if (shouldSkipAutomaticNoonOverwrite(today, reportType)) {
+    console.log('Skip noon report overwrite after 12:00. Use --allow-midday-noon-update for an explicit rerun.');
+    process.exit(3);
   }
   
   // 八字排盘（精确农历计算）
@@ -823,7 +846,13 @@ function pushToFeishu(data, webhookUrl, siteUrl) {
 // 主函数
 async function main() {
   const hour = today.getHours();
-  console.log(`开始生成${hour >= 9 && hour < 10 ? '早盘' : hour >= 11 && hour < 14 ? '午间' : hour >= 15 ? '盘后' : '早盘'}日报...`);
+  const reportType = resolveReportType(today);
+  if (shouldSkipAutomaticNoonOverwrite(today, reportType)) {
+    console.log('Skip noon report overwrite after 12:00. Use --allow-midday-noon-update for an explicit rerun.');
+    process.exit(3);
+  }
+  const reportLabel = reportType === 'morning' ? '早盘' : reportType === 'noon' ? '午间' : '盘后';
+  console.log(`开始生成${reportLabel}日报...`);
   
   // 生成数据
   const data = await generateDailyData();

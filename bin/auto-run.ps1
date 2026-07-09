@@ -46,6 +46,12 @@ Write-LogLine "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz') start daily rep
 Invoke-Logged -FilePath 'node' -Arguments @('..\bin\daily-auto-generate.js')
 $generateExit = $script:LastCommandExitCode
 
+if ($generateExit -eq 3) {
+  Write-LogLine '=== daily report generation skipped by time guard ==='
+  Write-LogLine "=== $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz') done ==="
+  exit 0
+}
+
 if ($generateExit -eq 0) {
   if ($env:FEISHU_WEBHOOK_ENABLED -eq '1') {
     Write-LogLine '=== webhook push handled by daily-auto-generate, skip app identity push ==='

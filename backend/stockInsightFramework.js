@@ -24,7 +24,7 @@ const STOCK_INDUSTRY_HINTS = [
   { industry: '农林牧渔', codes: ['002714', '300498'], names: ['牧原股份', '温氏股份'] },
   { industry: '环保', codes: ['300070', '600323'], names: ['碧水源', '瀚蓝环境'] },
   { industry: '有色金属', codes: ['603993'], names: ['洛阳钼业'] },
-  { industry: '基础化工', codes: ['600989'], names: ['宝丰能源'] }
+  { industry: '基础化工', codes: ['600989', '603938'], names: ['宝丰能源', '三孚股份'] }
 ];
 
 const INDUSTRY_KEYWORDS = [

@@ -100,12 +100,35 @@ def normalize_ffd_result(result):
     return result
 
 
+def columnar_to_rows(data):
+    if not isinstance(data, dict):
+        return data
+    list_fields = {key: value for key, value in data.items() if isinstance(value, list)}
+    if not list_fields:
+        return data
+    row_count = max(len(value) for value in list_fields.values())
+    rows = []
+    for index in range(row_count):
+        row = {}
+        for key, value in data.items():
+            if isinstance(value, list):
+                row[key] = value[index] if index < len(value) else None
+            else:
+                row[key] = value
+        rows.append(row)
+    return rows
+
+
 def flatten_quote_rows(raw):
     raw = normalize_ffd_result(raw)
     if isinstance(raw, dict):
         for key in ("data", "rows", "result"):
-            if isinstance(raw.get(key), list):
-                raw = raw[key]
+            value = raw.get(key)
+            if isinstance(value, list):
+                raw = value
+                break
+            if isinstance(value, dict):
+                raw = columnar_to_rows(value)
                 break
     if not isinstance(raw, list):
         return []
@@ -206,8 +229,12 @@ def flatten_basic_rows(raw):
     raw = normalize_ffd_result(raw)
     if isinstance(raw, dict):
         for key in ("data", "rows", "result", "items"):
-            if isinstance(raw.get(key), list):
-                raw = raw[key]
+            value = raw.get(key)
+            if isinstance(value, list):
+                raw = value
+                break
+            if isinstance(value, dict):
+                raw = columnar_to_rows(value)
                 break
     if not isinstance(raw, list):
         return []
@@ -221,6 +248,17 @@ def first_non_empty(row, names):
     return None
 
 
+def extract_json_error(exc):
+    text = str(exc)
+    start = text.find("{")
+    if start >= 0:
+        try:
+            return json.loads(text[start:])
+        except Exception:
+            pass
+    return {"message": text}
+
+
 def attach_ffd_pe_checks(data, args, stock_checks):
     targets = [item for item in stock_checks if not item.get("is_fund_like")]
     targets = targets[: max(0, args.stock_limit)]
@@ -230,9 +268,9 @@ def attach_ffd_pe_checks(data, args, stock_checks):
     codes = ",".join(item["ffd_code"] for item in targets)
     attempts = []
     query_variants = [
+        {"function": "realtime_quote", "codes": codes, "indicators": "latest;changeRatio;" + args.pe_indicators.replace(",", ";")},
         {"function": "basic_data", "codes": codes, "indicators": args.pe_indicators},
         {"function": "basic_data", "codes": codes, "indicators": args.pe_indicators, "start_date": args.date, "end_date": args.date},
-        {"function": "realtime_quote", "codes": codes, "indicators": "latest;changeRatio;" + args.pe_indicators.replace(",", ";")},
     ]
 
     rows = []
@@ -246,7 +284,7 @@ def attach_ffd_pe_checks(data, args, stock_checks):
                 chosen = payload
                 break
         except Exception as exc:
-            attempts.append({"payload": payload, "ok": False, "error": f"{type(exc).__name__}: {exc}"})
+            attempts.append({"payload": payload, "ok": False, "error_type": type(exc).__name__, "error": extract_json_error(exc)})
 
     by_code = {}
     for row in rows:
@@ -278,9 +316,52 @@ def attach_ffd_pe_checks(data, args, stock_checks):
         else:
             item["status"] = "pass" if local_pe is not None and abs(local_pe - ffd_pe) <= 0.5 else "diff_or_no_local_pe"
 
+    if not rows:
+        wc_attempts = []
+        for item in targets:
+            local = item.get("local_analysis") or {}
+            query = f"{item['ffd_code']} {item['name']} 市盈率TTM 市净率"
+            payload = {"function": "THS_WCQuery", "query": query, "market": "stock"}
+            try:
+                raw = data.query(**payload)
+                wc_rows = flatten_basic_rows(raw)
+                wc_attempts.append({"payload": payload, "ok": True, "row_count": len(wc_rows)})
+                ffd_pe = None
+                ffd_pb = None
+                raw_fields = []
+                raw_preview = None
+                if wc_rows:
+                    raw_fields = sorted(list(wc_rows[0].keys()))
+                    ffd_pe = to_float(first_non_empty(wc_rows[0], ("市盈率TTM", "市盈率", "PE", "PE_TTM", "pe_ttm", "pe")))
+                    ffd_pb = to_float(first_non_empty(wc_rows[0], ("市净率", "PB", "pb")))
+                    raw_preview = {key: wc_rows[0].get(key) for key in raw_fields[:12]}
+                local_pe = to_float(local.get("pe"))
+                local_pb = to_float(local.get("pb"))
+                item["ffd_smart_query"] = {
+                    "row_found": bool(wc_rows),
+                    "pe": ffd_pe,
+                    "pb": ffd_pb,
+                    "pe_diff": None if local_pe is None or ffd_pe is None else local_pe - ffd_pe,
+                    "pb_diff": None if local_pb is None or ffd_pb is None else local_pb - ffd_pb,
+                    "raw_fields": raw_fields,
+                    "raw_preview": raw_preview,
+                }
+                if not wc_rows:
+                    item["status"] = "ffd_smart_query_empty"
+                elif ffd_pe is None and ffd_pb is None:
+                    item["status"] = "ffd_smart_query_no_pe_pb_field"
+                elif ffd_pe is not None and local_pe is not None:
+                    item["status"] = "pass" if abs(local_pe - ffd_pe) <= 0.5 else "diff"
+                else:
+                    item["status"] = "ffd_smart_query_partial"
+            except Exception as exc:
+                wc_attempts.append({"payload": payload, "ok": False, "error_type": type(exc).__name__, "error": extract_json_error(exc)})
+                item["status"] = "ffd_smart_query_error"
+        attempts.extend(wc_attempts)
+
     return {
         "skipped": False,
-        "field_note": "PE/PB indicators default to pe_ttm,pb; override with --pe-indicators after confirming FFD field dictionary.",
+        "field_note": "PE/PB first tries configured basic_data indicators; when FFD rejects oral field names, falls back to THS_WCQuery smart lookup.",
         "chosen_query": chosen,
         "attempts": attempts,
     }

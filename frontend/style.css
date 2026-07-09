@@ -1454,6 +1454,24 @@ main {
   line-height: 1.8;
 }
 
+.dimension-extra {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+  display: grid;
+  gap: 6px;
+}
+
+.dimension-extra strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.dimension-extra span {
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
 .stock-search input {
   flex: 1;
   padding: 12px 16px;
@@ -2782,6 +2800,7 @@ footer .disclaimer {
 .dim-label.technical   { color: #10b981; }
 .dim-label.mystic     { color: #8b5cf6; }
 .dim-label.flow       { color: #16a085; }
+.dim-label.value-points { color: #d97706; }
 
 .dim-text { color: #374151; flex: 1; }
 
@@ -3033,6 +3052,7 @@ footer .disclaimer {
 .dim-label.technical { color: #059669; background: #ecfdf5; }
 .dim-label.mystic { color: #7c3aed; background: #f5f3ff; }
 .dim-label.flow { color: #0f766e; background: #ecfdf5; }
+.dim-label.value-points { color: #b45309; background: #fffbeb; }
 .dim-text { color: #4b5563; flex: 1; }
 
 /* 行业推荐标的行情 */

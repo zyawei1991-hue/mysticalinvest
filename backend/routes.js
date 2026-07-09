@@ -4,7 +4,7 @@ const { getBaZi, countFiveElements, checkRelationship, getRecommendedIndustries,
 const { getStockQuote, fetchQuote, getStockTrend } = require('./market');
 const { getProviderStatus } = require('./historicalDataProvider');
 const { loadKnowledgeBase, searchKnowledgeBase } = require('./knowledgeBase');
-const { buildIntegratedStockAnalysis } = require('./stockInsightFramework');
+const { buildIntegratedStockAnalysis, normalizeStockQuery } = require('./stockInsightFramework');
 
 const router = express.Router();
 
@@ -511,7 +511,7 @@ router.get('/stock/analyze', async (req, res) => {
 
   try {
     // 1. 获取实时行情
-    const quote = await getStockQuote(q);
+    const quote = await getStockQuote(normalizeStockQuery(q));
 
     // 2. 生成融合四维分析：行业五行先验 + 价投估值 + 量价资金确认
     const analysis = buildIntegratedStockAnalysis(quote, q, { date: req.query.date });

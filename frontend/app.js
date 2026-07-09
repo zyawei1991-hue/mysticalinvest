@@ -300,6 +300,7 @@ function renderStockAnalysis(data) {
       <div class="dimension-card fundamental">
         <h3>价投/基本面</h3>
         <div class="dimension-content">${escapeHtml(analysis.fundamental || '暂无基本面分析')}</div>
+        ${analysis.value_points ? `<div class="dimension-extra"><strong>价投买卖点</strong><span>${escapeHtml(analysis.value_points)}</span></div>` : ''}
       </div>
       <div class="dimension-card technical">
         <h3>量价/趋势</h3>
@@ -2474,6 +2475,7 @@ async function loadStockAnalysis(code, name) {
       html += '<details class="stock-dimension-details" open><summary>融合四维分析详情</summary>';
       if (a.mystic) html += `<div class="dim-row"><span class="dim-label mystic">五行/行业</span><span class="dim-text">${escapeHtml(a.mystic)}</span></div>`;
       if (a.fundamental) html += `<div class="dim-row"><span class="dim-label fundamental">价投/基本面</span><span class="dim-text">${escapeHtml(a.fundamental)}</span></div>`;
+      if (a.value_points) html += `<div class="dim-row"><span class="dim-label value-points">买卖点</span><span class="dim-text">${escapeHtml(a.value_points)}</span></div>`;
       if (a.technical) html += `<div class="dim-row"><span class="dim-label technical">量价/趋势</span><span class="dim-text">${escapeHtml(a.technical)}</span></div>`;
       if (a.flow) html += `<div class="dim-row"><span class="dim-label flow">资金/风险</span><span class="dim-text">${escapeHtml(a.flow)}</span></div>`;
       html += '</details>';

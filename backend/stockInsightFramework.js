@@ -12,7 +12,7 @@ const STOCK_INDUSTRY_HINTS = [
   { industry: '计算机', codes: ['002230', '002415'], names: ['科大讯飞', '海康威视'] },
   { industry: '通信', codes: ['000063'], names: ['中兴通讯'] },
   { industry: '电子', codes: ['688981', '002475', '002241'], names: ['中芯国际', '立讯精密', '歌尔股份'] },
-  { industry: '汽车', codes: ['002594', '601633'], names: ['比亚迪', '长城汽车'] },
+  { industry: '汽车', codes: ['002594', '601633', '600104'], names: ['比亚迪', '长城汽车', '上汽集团', '上汽股份'] },
   { industry: '机械设备', codes: ['600031', '000425'], names: ['三一重工', '徐工机械'] },
   { industry: '建筑装饰', codes: ['601668', '601390'], names: ['中国建筑', '中国中铁'] },
   { industry: '建筑材料', codes: ['600585', '002271'], names: ['海螺水泥', '东方雨虹'] },
@@ -35,11 +35,20 @@ const INDUSTRY_KEYWORDS = [
   ['电力', '公用事业'], ['电网', '公用事业'], ['电池', '电力设备'], ['光伏', '电力设备'],
   ['计算机', '计算机'], ['软件', '计算机'], ['通信', '通信'],
   ['电子', '电子'], ['芯', '电子'], ['半导体', '电子'],
-  ['汽车', '汽车'], ['机械', '机械设备'], ['建筑', '建筑装饰'], ['水泥', '建筑材料'],
+  ['汽车', '汽车'], ['上汽', '汽车'], ['机械', '机械设备'], ['建筑', '建筑装饰'], ['水泥', '建筑材料'],
   ['钢', '钢铁'], ['医药', '医药生物'], ['药', '医药生物'],
   ['地产', '房地产'], ['航运', '交通运输'], ['物流', '交通运输'],
   ['环保', '环保'], ['有色', '有色金属'], ['钼', '有色金属']
 ];
+
+const STOCK_QUERY_ALIASES = {
+  '上汽股份': 'sh600104'
+};
+
+function normalizeStockQuery(value) {
+  const text = String(value || '').trim();
+  return STOCK_QUERY_ALIASES[text] || text;
+}
 
 function normalizeCode(value) {
   return String(value || '')
@@ -66,6 +75,16 @@ function pct(value, digits = 1) {
 function formatMetric(value, digits = 2) {
   const num = finiteNumber(value);
   return num === null ? '-' : num.toFixed(digits);
+}
+
+function formatPrice(value) {
+  const num = finiteNumber(value);
+  return num === null || num <= 0 ? '-' : num.toFixed(2);
+}
+
+function minDefined(values) {
+  const nums = values.filter(value => finiteNumber(value) !== null && finiteNumber(value) > 0).map(Number);
+  return nums.length ? Math.min(...nums) : null;
 }
 
 function resolveStockIndustry(quote, query) {
@@ -133,6 +152,59 @@ function valuationProfile(quote) {
   score = clamp(score, 0, 100);
   const label = score >= 75 ? '价投底线较稳' : score >= 60 ? '估值中性偏可跟踪' : score >= 45 ? '估值需要验证' : '价投安全边际不足';
   return { score, label, notes, pe, pb };
+}
+
+function valuePointProfile(quote, value, technical, flow) {
+  const price = finiteNumber(quote.last);
+  const pe = finiteNumber(value.pe);
+  const pb = finiteNumber(value.pb);
+  const eps = price && pe && pe > 0 ? price / pe : null;
+  const bvps = price && pb && pb > 0 ? price / pb : null;
+  const peWatch = eps ? eps * 18 : null;
+  const peDeep = eps ? eps * 15 : null;
+  const peRisk = eps ? eps * 35 : null;
+  const pbWatch = bvps ? bvps * 3 : null;
+  const pbDeep = bvps ? bvps * 2 : null;
+  const pbRisk = bvps ? bvps * 5 : null;
+  const watchCeiling = minDefined([peWatch, pbWatch]);
+  const deepValueLine = minDefined([peDeep, pbDeep]);
+  const riskLine = minDefined([peRisk, pbRisk]);
+  const isValueZone = value.score >= 60 && (pe === null || pe <= 20) && (pb === null || pb <= 3);
+  const hasMarketConfirm = technical.score >= 55 || flow.score >= 55;
+
+  let label = '估值等待';
+  let buyTrigger = '估值安全边际还不充分，暂不定义价投买点。';
+  if (isValueZone && hasMarketConfirm) {
+    label = '估值合格，等待回踩买点';
+    buyTrigger = '买点触发：估值已在可跟踪区，等回踩不破、资金转正或量价重新走强时才成立。';
+  } else if (isValueZone) {
+    label = '估值合格，盘面未确认';
+    buyTrigger = '买点触发：估值合格，但量价/资金未确认，先等止跌、缩量回踩或主力流出收敛。';
+  } else if (watchCeiling && price && price <= watchCeiling) {
+    label = '价格在观察区，质地待补';
+    buyTrigger = '买点触发：价格已接近估值观察区，但需要ROE、现金流、分红等价投字段补齐后再升级。';
+  }
+
+  const sellTrigger = riskLine
+    ? `卖点/降级：若估值扩张到PE约35倍或PB约5倍对应的高估线附近（参考价约${formatPrice(riskLine)}），且资金转弱，应降级或退出观察。`
+    : '卖点/降级：若PE/PB显著抬升且资金转弱，或基本面逻辑被证伪，应降级或退出观察。';
+
+  const deepText = deepValueLine ? `深度价值参考线约${formatPrice(deepValueLine)}` : '深度价值线待估算';
+  const watchText = watchCeiling ? `估值观察上限约${formatPrice(watchCeiling)}` : '估值观察上限待估算';
+  const riskText = riskLine ? `高估降级线约${formatPrice(riskLine)}` : '高估降级线待估算';
+
+  return {
+    label,
+    price,
+    eps,
+    bvps,
+    watch_ceiling: watchCeiling,
+    deep_value_line: deepValueLine,
+    risk_line: riskLine,
+    buy_trigger: buyTrigger,
+    sell_trigger: sellTrigger,
+    summary: `${label}：${watchText}，${deepText}，${riskText}。${buyTrigger}${sellTrigger}`
+  };
 }
 
 function technicalProfile(quote) {
@@ -303,19 +375,22 @@ function buildIntegratedStockAnalysis(quote, query, options = {}) {
   const value = valuationProfile(quote);
   const technical = technicalProfile(quote);
   const flow = flowProfile(quote);
+  const valuePoints = valuePointProfile(quote, value, technical, flow);
   const decision = buildDecision(mystic, value, technical, flow);
 
   const analysis = {
     version: 'stock-integrated-rule-v1',
     decision,
     mystic: mystic.note,
-    fundamental: `${value.label}：${value.notes.join('；')}。当前只接入PE_TTM/PB，ROE、现金流、分红等深度价投字段仍需后续数据源补齐。`,
+    fundamental: `${value.label}：${value.notes.join('；')}。${valuePoints.summary} 当前只接入PE_TTM/PB，ROE、现金流、分红等深度价投字段仍需后续数据源补齐。`,
+    value_points: valuePoints.summary,
     technical: `${technical.label}：${technical.note}；当前涨跌幅${pct(technical.change, 2)}。`,
     flow: `${flow.label}：${flow.note}。`,
     news: `市场情绪参考：${technical.label}；该字段不再单独作为决策依据，已并入量价确认。`,
     factors: {
       mystic,
       value,
+      value_points: valuePoints,
       technical,
       flow
     },
@@ -337,5 +412,6 @@ function buildIntegratedStockAnalysis(quote, query, options = {}) {
 
 module.exports = {
   buildIntegratedStockAnalysis,
+  normalizeStockQuery,
   resolveStockIndustry
 };

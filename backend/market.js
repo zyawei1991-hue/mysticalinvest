@@ -974,9 +974,10 @@ async function getStockQuote(stockCode, stockName) {
       result.last = parseFloat(fields[3]);
       result.change = parseFloat(fields[31]);
       result.changePercent = parseFloat(fields[32]);
-      // PE/PB from Tencent API: field[46]=PB, field[65]=PE_TTM
+      // PE/PB from Tencent API: field[39]=PE_TTM, field[46]=PB.
+      // field[65] is another valuation/financial field and does not match PE_TTM.
       if (!result.pe) {
-        const peTTM = parseFloat(fields[65]);
+        const peTTM = parseFloat(fields[39]);
         if (!isNaN(peTTM) && peTTM > 0) result.pe = peTTM;
       }
       if (!result.pb) {
@@ -1022,8 +1023,8 @@ async function getStockQuote(stockCode, stockName) {
           if (code === 'headName' || code === 'headNameSub') continue;
           const val = parseValue(table[code]?.[0]);
           if (val === null) continue;
-          if (name === 'PE' || name === '市盈率') result.pe = val;
-          else if (name === 'PB' || name === '市净率') result.pb = val;
+          if ((name === 'PE' || name === '市盈率') && !result.pe) result.pe = val;
+          else if ((name === 'PB' || name === '市净率') && !result.pb) result.pb = val;
         }
       }
     } catch (e) {

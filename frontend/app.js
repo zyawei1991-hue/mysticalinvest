@@ -226,7 +226,10 @@ async function sendAssistantMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message,
-        messages: assistantMessages.slice(-8)
+        messages: assistantMessages.slice(-8),
+        report_type: currentReportType,
+        report_date: currentReportData && currentReportData.report_date ? currentReportData.report_date : null,
+        presentation_mode: currentPresentationMode
       })
     });
     const data = await res.json().catch(() => ({}));

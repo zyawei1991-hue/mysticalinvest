@@ -52,24 +52,173 @@ async function resolveAndCacheStockIndustryFromInput(name, code) {
   }
 }
 
-function getLatestAssistantContext() {
-  const report = get(`SELECT report_date, report_type, card_summary, industries_json,
-    operation_advice_json, key_variables_json, market_momentum_json, risk_warning
-    FROM reports ORDER BY report_date DESC, created_at DESC LIMIT 1`);
+function toFiniteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatAssistantPercent(value) {
+  const number = toFiniteNumber(value);
+  return number === null ? '未返回' : `${number >= 0 ? '+' : ''}${number.toFixed(2)}%`;
+}
+
+function formatAssistantYi(value) {
+  const number = toFiniteNumber(value);
+  if (number === null) return '未返回';
+  const yi = Math.abs(number) > 1000000 ? number / 100000000 : number;
+  return `${yi >= 0 ? '+' : ''}${yi.toFixed(2)}亿`;
+}
+
+function getAssistantBreadthBalancePct(marketBreadth) {
+  if (!marketBreadth) return null;
+  const up = toFiniteNumber(marketBreadth.up) || 0;
+  const down = toFiniteNumber(marketBreadth.down) || 0;
+  const flat = toFiniteNumber(marketBreadth.flat) || 0;
+  const total = toFiniteNumber(marketBreadth.total) || up + down + flat;
+  if (!total) return null;
+  return ((up - down) / total) * 100;
+}
+
+function buildAssistantPageSummary(latestReport) {
+  if (!latestReport) return null;
+  const momentum = latestReport.market_momentum || {};
+  const turnover = momentum.turnover || {};
+  const marketBreadth = latestReport.market_breadth || {};
+  const operationAdvice = latestReport.operation_advice || {};
+  const turnoverRate = toFiniteNumber(turnover.marketRate);
+  const breadthBalance = getAssistantBreadthBalancePct(marketBreadth);
+  const mainFlow = toFiniteNumber(momentum.mainForce && momentum.mainForce.netInflow);
+  const etfFlow = toFiniteNumber(momentum.etfFlow && momentum.etfFlow.netInflow);
+  const weakBreadth = breadthBalance !== null && breadthBalance < -8;
+  const strongBreadth = breadthBalance !== null && breadthBalance > 8;
+  const highTurnover = turnoverRate !== null && turnoverRate >= 3;
+  const lowTurnover = turnoverRate !== null && turnoverRate < 1.5;
+  const mainOutflow = mainFlow !== null && mainFlow < 0;
+  const mainInflow = mainFlow !== null && mainFlow > 0;
+  const etfInflow = etfFlow !== null && etfFlow > 0;
+
+  let volumeTitle = '量能等待确认';
+  let volumeMeaning = '当前量能数据不足或方向不清，暂不把量能作为加仓依据。';
+  let volumeAction = '保持观察，等成交活跃度、宽度和主力资金同时改善。';
+
+  if (lowTurnover) {
+    volumeTitle = '缩量观察';
+    volumeMeaning = '全市场换手偏低，成交活跃度不足。';
+    volumeAction = '不追涨，只看回踩后能否放量。';
+  } else if (highTurnover && weakBreadth && mainOutflow) {
+    volumeTitle = '放量分歧，承接偏弱';
+    volumeMeaning = '换手率较高，但上涨家数明显少于下跌家数，且主力资金净流出，说明量能来自分歧和换手，不是顺畅进攻。';
+    volumeAction = '不扩大仓位；候选行业只做观察，等宽度修复或主力流出收敛。';
+  } else if (highTurnover && strongBreadth && mainInflow) {
+    volumeTitle = '量价配合较好';
+    volumeMeaning = '换手活跃，市场宽度和主力资金同步改善，量能对进攻方向有支持。';
+    volumeAction = '可按仓位纪律跟踪强势行业延续性，但仍不追首波拉升。';
+  } else if (highTurnover && etfInflow && !mainInflow) {
+    volumeTitle = '指数资金托底，个股承接一般';
+    volumeMeaning = '换手活跃且 ETF 有净流入，但主力资金没有同步转强。';
+    volumeAction = '优先看 ETF 和行业龙头，不把小票冲高当作普涨确认。';
+  } else if (highTurnover) {
+    volumeTitle = '有量，但方向未完全确认';
+    volumeMeaning = '全市场换手活跃，但还需要结合宽度和资金方向判断。';
+    volumeAction = '只提高观察优先级，不单独因为有量就加仓。';
+  }
+
+  const up = toFiniteNumber(marketBreadth.up);
+  const down = toFiniteNumber(marketBreadth.down);
+  const riskValue = volumeTitle === '放量分歧，承接偏弱' || mainOutflow
+    ? '最高只观察'
+    : weakBreadth
+      ? '等确认'
+      : '正常排序';
+
+  return {
+    visible_view: '通用版日报',
+    report_date: latestReport.report_date,
+    report_type: latestReport.report_type,
+    action: {
+      stance: operationAdvice.stance || null,
+      position: operationAdvice.position || null,
+      rhythm: operationAdvice.rhythm || null,
+      summary: operationAdvice.summary || latestReport.card_summary || null
+    },
+    visible_cards: {
+      market: {
+        label: weakBreadth ? '市场偏弱' : '市场中性',
+        value: up !== null && down !== null ? `上涨${up}家 / 下跌${down}家` : '宽度数据未返回',
+        meaning: weakBreadth ? '上涨家数明显少于下跌家数，先保护仓位。' : '宽度没有强风险触发。'
+      },
+      volume: {
+        label: volumeTitle,
+        value: formatAssistantPercent(turnoverRate),
+        unit: '全市场换手率/量能百分比，不是资金金额',
+        meaning: volumeMeaning,
+        action: volumeAction
+      },
+      risk_gate: {
+        label: '风险门控',
+        value: riskValue,
+        meaning: '资金、宽度、量能或指数触发风险时，行业候选只能先观察，不能直接升级为加仓信号。'
+      }
+    },
+    raw_metrics: {
+      turnover_rate_percent: turnoverRate,
+      breadth_balance_percent: breadthBalance,
+      main_force_flow_yi: mainFlow === null ? null : mainFlow / 100000000,
+      etf_flow_yi: etfFlow === null ? null : etfFlow / 100000000,
+      main_force_flow_text: formatAssistantYi(mainFlow),
+      etf_flow_text: formatAssistantYi(etfFlow)
+    },
+    number_explainers: [
+      turnoverRate === null ? null : `页面中的“${formatAssistantPercent(turnoverRate)}”指全市场换手率/量能状态，单位是%，不是主力资金或 ETF 资金的“亿”。`,
+      `主力资金字段当前为${formatAssistantYi(mainFlow)}，ETF资金字段当前为${formatAssistantYi(etfFlow)}。`
+    ].filter(Boolean)
+  };
+}
+
+function getLatestAssistantContext(options = {}) {
+  const reportType = String(options.report_type || '').trim();
+  const reportDate = String(options.report_date || '').trim();
+  const selectFields = `report_date, report_type, hs300_change, sh_change, sz_change, cy_change,
+    card_summary, industries_json, operation_advice_json, key_variables_json,
+    market_momentum_json, market_breadth_json, risk_warning`;
+  let report = null;
+  if (reportDate && reportType) {
+    report = get(`SELECT ${selectFields} FROM reports WHERE report_date = ? AND report_type = ?
+      ORDER BY created_at DESC LIMIT 1`, [reportDate, reportType]);
+  }
+  if (!report && reportType) {
+    report = get(`SELECT ${selectFields} FROM reports WHERE report_type = ?
+      ORDER BY report_date DESC, created_at DESC LIMIT 1`, [reportType]);
+  }
+  if (!report) {
+    report = get(`SELECT ${selectFields} FROM reports ORDER BY report_date DESC, created_at DESC LIMIT 1`);
+  }
   const decisions = all(`SELECT report_date, report_type, conclusion, recommended_industries_json,
     risk_scenario FROM decision_logs ORDER BY report_date DESC, updated_at DESC LIMIT 5`);
   const watchlist = all('SELECT name, code, alert_level FROM watchlist ORDER BY created_at DESC LIMIT 20');
+  const latestReport = report ? {
+    report_date: report.report_date,
+    report_type: report.report_type,
+    hs300_change: report.hs300_change,
+    sh_change: report.sh_change,
+    sz_change: report.sz_change,
+    cy_change: report.cy_change,
+    card_summary: report.card_summary,
+    industries: parseJsonMaybe(report.industries_json),
+    operation_advice: parseJsonMaybe(report.operation_advice_json),
+    key_variables: parseJsonMaybe(report.key_variables_json),
+    market_momentum: parseJsonMaybe(report.market_momentum_json),
+    market_breadth: parseJsonMaybe(report.market_breadth_json),
+    risk_warning: report.risk_warning
+  } : null;
   return {
-    latest_report: report ? {
-      report_date: report.report_date,
-      report_type: report.report_type,
-      card_summary: report.card_summary,
-      industries: parseJsonMaybe(report.industries_json),
-      operation_advice: parseJsonMaybe(report.operation_advice_json),
-      key_variables: parseJsonMaybe(report.key_variables_json),
-      market_momentum: parseJsonMaybe(report.market_momentum_json),
-      risk_warning: report.risk_warning
-    } : null,
+    requested_page: {
+      report_date: reportDate || null,
+      report_type: reportType || null,
+      presentation_mode: options.presentation_mode || null
+    },
+    latest_report: latestReport,
+    visible_report_summary: buildAssistantPageSummary(latestReport),
     recent_decisions: decisions.map(item => ({
       ...item,
       recommended_industries: parseJsonMaybe(item.recommended_industries_json)
@@ -96,13 +245,14 @@ function buildAssistantPrompt(message, history, kbItems, context) {
     '你是“五行投资日报”项目内置 AI 助手，模型由 caolele 兼容接口提供。',
     '你的任务：基于项目日报、知识库、关注标的和用户对话，帮助用户解释日报、复盘模型、查询项目知识、生成观察清单。',
     '约束：不要编造实时行情；涉及个股时提醒这是观察和复盘，不构成买卖建议；遇到数据缺失要明确说缺失；不要输出 token、key、webhook、私有 Base 链接。',
+    '如果用户问页面上看到的数字，优先使用 visible_report_summary 和 key_variables 中的原始字段、单位和解释；不要把“%”口径的量能/换手率误解成“亿”口径的资金流。',
     '回答风格：中文，短而具体，优先给结论和可执行下一步。',
     '',
     '【最近对话】',
     dialogue || '无',
     '',
     '【项目上下文】',
-    compactJson(context, 2600),
+    compactJson(context, 5200),
     '',
     '【知识库命中】',
     kbText || '无命中知识条目',
@@ -262,7 +412,11 @@ router.post('/assistant/chat', async (req, res) => {
   const fallbackKb = kbResult.items && kbResult.items.length > 0
     ? kbResult
     : searchKnowledgeBase({ usable_for: 'ai_chat', status: 'active', limit: 8 });
-  const context = getLatestAssistantContext();
+  const context = getLatestAssistantContext({
+    report_type: req.body?.report_type,
+    report_date: req.body?.report_date,
+    presentation_mode: req.body?.presentation_mode
+  });
   const prompt = buildAssistantPrompt(message, history, fallbackKb.items || [], context);
 
   try {

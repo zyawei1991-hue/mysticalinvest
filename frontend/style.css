@@ -6555,6 +6555,87 @@ body.assistant-fullscreen-active #assistantSection {
   gap: 10px;
 }
 
+.stock-valuation-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-left: 5px solid #2563eb;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.stock-valuation-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stock-valuation-head span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.stock-valuation-head strong {
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.stock-valuation-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stock-valuation-grid div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #e0ecff;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.stock-valuation-grid span {
+  display: block;
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.stock-valuation-grid strong {
+  display: block;
+  margin-top: 4px;
+  color: #111827;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.stock-valuation-triggers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stock-valuation-triggers p {
+  margin: 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: #fff;
+  color: #475569;
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+
+.stock-valuation-triggers strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #0f172a;
+}
+
 .stock-visual-dim {
   min-width: 0;
   overflow: hidden;
@@ -6636,8 +6717,13 @@ body.assistant-fullscreen-active #assistantSection {
   }
 
   .stock-visual-metrics,
+  .stock-valuation-grid,
   .stock-visual-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stock-valuation-triggers {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .stock-visual-dim summary {

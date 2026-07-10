@@ -538,6 +538,51 @@ function renderStockMetric(label, value, cls) {
   </div>`;
 }
 
+function formatStockPriceMetric(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number.toFixed(2) : '-';
+}
+
+function stripStockTriggerPrefix(text) {
+  return String(text || '').replace(/^(买点触发|卖点\/降级|卖点|降级)[：:]\s*/, '');
+}
+
+function renderStockValuationPanel(valuation, fallbackText) {
+  const profile = valuation && typeof valuation === 'object' ? valuation : null;
+  if (!profile) {
+    return fallbackText ? `<div class="stock-valuation-panel">
+      <div class="stock-valuation-head">
+        <span>价投测算</span>
+        <strong>估值字段待结构化</strong>
+      </div>
+      <p>${escapeHtml(fallbackText)}</p>
+    </div>` : '';
+  }
+
+  const deep = formatStockPriceMetric(profile.deep_value_line);
+  const watch = formatStockPriceMetric(profile.watch_ceiling);
+  const risk = formatStockPriceMetric(profile.risk_line);
+  const current = formatStockPriceMetric(profile.price);
+  const reasonableRange = deep !== '-' && watch !== '-' ? `${deep} - ${watch}` : (watch !== '-' ? `<= ${watch}` : '-');
+
+  return `<div class="stock-valuation-panel">
+    <div class="stock-valuation-head">
+      <span>价投测算</span>
+      <strong>${escapeHtml(profile.label || '估值复核')}</strong>
+    </div>
+    <div class="stock-valuation-grid">
+      <div><span>现价</span><strong>${escapeHtml(current)}</strong></div>
+      <div><span>合理观察区</span><strong>${escapeHtml(reasonableRange)}</strong></div>
+      <div><span>深度价值线</span><strong>${escapeHtml(deep)}</strong></div>
+      <div><span>高估降级线</span><strong>${escapeHtml(risk)}</strong></div>
+    </div>
+    <div class="stock-valuation-triggers">
+      <p><strong>买点触发</strong>${escapeHtml(stripStockTriggerPrefix(profile.buy_trigger || '等待估值、安全边际和盘面确认。'))}</p>
+      <p><strong>卖点/降级</strong>${escapeHtml(stripStockTriggerPrefix(profile.sell_trigger || '若估值扩张、资金转弱或基本面证伪，降级或退出观察。'))}</p>
+    </div>
+  </div>`;
+}
+
 function renderStockVisualDimension(type, title, text, fallback, extraHtml) {
   const item = getShortAnalysisText(text, fallback);
   return `<details class="stock-visual-dim ${type}" ${item.full ? '' : 'open'}>
@@ -560,7 +605,8 @@ function renderStockAnalysis(data) {
   const priceText = Number.isFinite(Number(data.price)) ? Number(data.price).toFixed(2) : '-';
   const changeText = Number.isFinite(change) ? (change >= 0 ? '+' : '') + change.toFixed(2) + '%' : '-';
   const scoreText = Number.isFinite(Number(decision.score)) ? Number(decision.score).toFixed(0) : '-';
-  const industryText = data.industry || data.industry_name || '待识别';
+  const valuation = data.valuation || analysis.valuation || (analysis.factors && analysis.factors.value_points) || null;
+  const industryText = data.industry || data.industry_name || analysis.industry || (analysis.industry_profile && analysis.industry_profile.industry) || (analysis.factors && analysis.factors.mystic && analysis.factors.mystic.industry) || '待识别';
   const peText = Number.isFinite(Number(data.pe)) ? Number(data.pe).toFixed(1) : '-';
   const pbText = Number.isFinite(Number(data.pb)) ? Number(data.pb).toFixed(2) : '-';
   const decisionSummary = decision.summary || '行业先验、估值和盘面确认需要继续交叉验证。';
@@ -596,9 +642,11 @@ function renderStockAnalysis(data) {
         ${renderStockMetric('涨跌幅', changeText, change >= 0 ? 'positive' : 'negative')}
       </div>
 
+      ${renderStockValuationPanel(valuation, analysis.value_points)}
+
       <div class="stock-visual-grid">
         ${renderStockVisualDimension('mystic', '五行/行业', analysis.mystic, '行业五行映射待确认')}
-        ${renderStockVisualDimension('fundamental', '价投/基本面', analysis.fundamental, '暂无基本面分析', analysis.value_points ? `<div class="dimension-extra"><strong>买卖点</strong><span>${escapeHtml(analysis.value_points)}</span></div>` : '')}
+        ${renderStockVisualDimension('fundamental', '价投/基本面', analysis.fundamental, '暂无基本面分析')}
         ${renderStockVisualDimension('technical', '量价/趋势', analysis.technical, '暂无技术分析')}
         ${renderStockVisualDimension('flow', '资金/风险', analysis.flow, '暂无资金分析')}
       </div>

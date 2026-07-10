@@ -953,16 +953,22 @@ router.get('/stock/analyze', async (req, res) => {
 
     // 2. 生成融合四维分析：行业五行先验 + 价投估值 + 量价资金确认
     const analysis = buildIntegratedStockAnalysis(quote, q, { date: req.query.date, industryProfile });
+    const resolvedIndustry = industryProfile?.industry || analysis?.factors?.mystic?.industry || null;
+    const valuation = analysis?.valuation || analysis?.factors?.value_points || null;
 
     res.json({
       name: quote.name,
       code: quote.code,
+      industry: resolvedIndustry,
+      industry_name: resolvedIndustry,
+      industry_info: industryProfile || null,
       price: quote.last,
       change: quote.change,
       changePercent: quote.changePercent,
       pe: quote.pe,
       pb: quote.pb,
       netInflow: quote.netInflow,
+      valuation,
       analysis_source: 'stock_integrated_rule_engine_v1',
       llm_enabled: false,
       data_sources: {

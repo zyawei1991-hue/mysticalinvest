@@ -557,10 +557,17 @@ function buildIntegratedStockAnalysis(quote, query, options = {}) {
 
   const analysis = {
     version: 'stock-integrated-rule-v1',
+    industry: mystic.industry,
+    industry_profile: {
+      industry: mystic.industry,
+      confidence: mystic.confidence,
+      source: mystic.source
+    },
     decision,
     mystic: mystic.note,
     fundamental: `${value.label}：${value.notes.join('；')}。${valuePoints.summary} 当前只接入PE_TTM/PB，ROE、现金流、分红等深度价投字段仍需后续数据源补齐。`,
     value_points: valuePoints.summary,
+    valuation: valuePoints,
     technical: `${technical.label}：${technical.note}；当前涨跌幅${pct(technical.change, 2)}。`,
     flow: `${flow.label}：${flow.note}。`,
     news: `市场情绪参考：${technical.label}；该字段不再单独作为决策依据，已并入量价确认。`,

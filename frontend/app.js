@@ -192,7 +192,7 @@ function renderAssistantMessages(isLoading) {
   let html = '';
   assistantMessages.forEach(item => {
     html += `<div class="assistant-message ${item.role === 'assistant' ? 'assistant' : 'user'}">
-      <div class="assistant-bubble">${escapeHtml(item.content)}</div>
+      <div class="assistant-bubble">${item.role === 'assistant' ? renderAssistantMarkdown(item.content) : escapeHtml(item.content)}</div>
     </div>`;
   });
   if (isLoading) {
@@ -2338,6 +2338,61 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function renderAssistantMarkdown(text) {
+  const inline = value => escapeHtml(value)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+  let html = '';
+  let paragraph = [];
+  let listType = null;
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    html += '<p>' + inline(paragraph.join('\n')).replace(/\n/g, '<br>') + '</p>';
+    paragraph = [];
+  };
+  const closeList = () => {
+    if (!listType) return;
+    html += listType === 'ol' ? '</ol>' : '</ul>';
+    listType = null;
+  };
+
+  lines.forEach(rawLine => {
+    const line = rawLine.trim();
+    if (!line) {
+      flushParagraph();
+      closeList();
+      return;
+    }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      closeList();
+      const tag = heading[1].length === 1 ? 'h3' : 'h4';
+      html += `<${tag}>${inline(heading[2])}</${tag}>`;
+      return;
+    }
+    const ordered = line.match(/^\d+[.、]\s*(.+)$/);
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    if (ordered || bullet) {
+      flushParagraph();
+      const nextType = ordered ? 'ol' : 'ul';
+      if (listType && listType !== nextType) closeList();
+      if (!listType) {
+        listType = nextType;
+        html += nextType === 'ol' ? '<ol>' : '<ul>';
+      }
+      html += '<li>' + inline((ordered || bullet)[1]) + '</li>';
+      return;
+    }
+    paragraph.push(line);
+  });
+  flushParagraph();
+  closeList();
+  return html || '<p>没有生成有效回答。</p>';
 }
 
 function renderStrategySection(text) {

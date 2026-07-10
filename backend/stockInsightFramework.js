@@ -1,3 +1,5 @@
+const https = require('https');
+const { get, run } = require('./database');
 const { getBaZi, countFiveElements } = require('./bazi');
 const { scoreSwIndustries } = require('./swIndustryFramework');
 
@@ -45,6 +47,40 @@ const STOCK_QUERY_ALIASES = {
   '上汽股份': 'sh600104'
 };
 
+const EXTERNAL_INDUSTRY_RULES = [
+  { industry: '基础化工', words: ['化学', '化工', '化纤', '农药', '化肥', '塑料', '橡胶', '有机硅', '工业气体'] },
+  { industry: '汽车', words: ['汽车', '乘用车', '商用车', '汽车零部件'] },
+  { industry: '电子', words: ['电子', '半导体', '芯片', '消费电子', '元件'] },
+  { industry: '计算机', words: ['计算机', '软件', 'IT服务', '互联网服务'] },
+  { industry: '通信', words: ['通信', '通信设备', '光通信'] },
+  { industry: '传媒', words: ['传媒', '广告', '影视', '游戏', '出版'] },
+  { industry: '电力设备', words: ['电池', '光伏', '风电', '电力设备', '新能源设备'] },
+  { industry: '公用事业', words: ['电力', '燃气', '水务', '公用事业'] },
+  { industry: '煤炭', words: ['煤炭', '焦煤', '焦炭'] },
+  { industry: '石油石化', words: ['石油', '油气', '炼化'] },
+  { industry: '有色金属', words: ['有色', '小金属', '贵金属', '工业金属', '稀土'] },
+  { industry: '钢铁', words: ['钢铁', '普钢', '特钢'] },
+  { industry: '建筑材料', words: ['水泥', '玻璃玻纤', '装修建材', '建筑材料'] },
+  { industry: '建筑装饰', words: ['建筑', '基建', '工程咨询服务', '装修装饰'] },
+  { industry: '房地产', words: ['房地产', '房地产开发'] },
+  { industry: '银行', words: ['银行'] },
+  { industry: '非银金融', words: ['证券', '保险', '多元金融', '非银金融'] },
+  { industry: '白酒', words: ['白酒'] },
+  { industry: '食品饮料', words: ['食品', '饮料', '乳品', '调味品', '啤酒'] },
+  { industry: '医药生物', words: ['医药', '生物制品', '化学制药', '中药', '医疗器械', '医疗服务'] },
+  { industry: '农林牧渔', words: ['农业', '养殖', '种植', '农林牧渔', '饲料'] },
+  { industry: '环保', words: ['环保', '环境治理'] },
+  { industry: '交通运输', words: ['航空', '航运', '港口', '物流', '铁路公路', '机场'] },
+  { industry: '家用电器', words: ['家电', '白色家电', '厨卫电器'] },
+  { industry: '机械设备', words: ['机械', '通用设备', '专用设备', '工程机械'] },
+  { industry: '国防军工', words: ['军工', '航天', '航空装备', '地面兵装'] },
+  { industry: '轻工制造', words: ['造纸', '包装印刷', '家居用品', '轻工制造'] },
+  { industry: '纺织服饰', words: ['纺织', '服装', '服饰'] },
+  { industry: '商贸零售', words: ['零售', '贸易', '商贸'] },
+  { industry: '社会服务', words: ['旅游', '酒店', '教育', '餐饮', '社会服务'] },
+  { industry: '美容护理', words: ['美容', '化妆品'] }
+];
+
 function normalizeStockQuery(value) {
   const text = String(value || '').trim();
   return STOCK_QUERY_ALIASES[text] || text;
@@ -56,6 +92,36 @@ function normalizeCode(value) {
     .replace(/\.(SH|SZ)$/i, '')
     .replace(/^(sh|sz)/i, '')
     .replace(/\D/g, '');
+}
+
+function normalizeMarketCode(value) {
+  const text = String(value || '').trim().replace(/\.(SH|SZ)$/i, '').toLowerCase();
+  if (/^(sh|sz)\d{6}$/.test(text)) return text;
+  const code = normalizeCode(text);
+  if (!code) return '';
+  return /^(6|5|1[15])/.test(code) ? `sh${code}` : `sz${code}`;
+}
+
+function toEastmoneySecid(value) {
+  const code = normalizeMarketCode(value);
+  if (!code) return null;
+  return `${code.startsWith('sh') ? '1' : '0'}.${code.slice(2)}`;
+}
+
+function getJson(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers }, res => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { body += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); }
+        catch (error) { reject(error); }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(8000, () => req.destroy(new Error('request timeout')));
+  });
 }
 
 function finiteNumber(value) {
@@ -101,6 +167,117 @@ function resolveStockIndustry(quote, query) {
     return { industry: keyword[1], confidence: 'keyword', source: `name-keyword:${keyword[0]}` };
   }
   return { industry: null, confidence: 'unknown', source: 'unmapped' };
+}
+
+function mapExternalIndustry(rawIndustry, concepts, name) {
+  const haystack = [rawIndustry, concepts, name].filter(Boolean).join(' ');
+  for (const rule of EXTERNAL_INDUSTRY_RULES) {
+    if (rule.words.some(word => haystack.includes(word))) return rule.industry;
+  }
+  return null;
+}
+
+function getCachedStockIndustry(quote, query) {
+  const code = normalizeMarketCode(quote.code || query);
+  const name = String(quote.name || query || '').trim();
+  const row = get(
+    `SELECT * FROM stock_industry_cache
+     WHERE (code IS NOT NULL AND code = ?) OR (name IS NOT NULL AND name = ?)
+     ORDER BY updated_at DESC LIMIT 1`,
+    [code || null, name || null]
+  );
+  if (!row || !row.industry) return null;
+  return {
+    industry: row.industry,
+    confidence: row.confidence || 'cached',
+    source: row.source || 'stock-industry-cache',
+    raw_industry: row.raw_industry,
+    raw_concepts: row.raw_concepts,
+    cached: true
+  };
+}
+
+function saveStockIndustryCache(quote, query, resolved) {
+  if (!resolved || !resolved.industry) return;
+  const code = normalizeMarketCode(quote.code || query);
+  const name = String(quote.name || query || '').trim();
+  if (!code && !name) return;
+  const existing = get(
+    `SELECT id FROM stock_industry_cache
+     WHERE (code IS NOT NULL AND code = ?) OR (name IS NOT NULL AND name = ?)
+     ORDER BY updated_at DESC LIMIT 1`,
+    [code || null, name || null]
+  );
+  const values = [
+    code || null,
+    name || null,
+    resolved.industry,
+    resolved.raw_industry || null,
+    resolved.raw_concepts || null,
+    resolved.source || null,
+    resolved.confidence || null
+  ];
+  if (existing) {
+    run(`UPDATE stock_industry_cache SET
+      code = COALESCE(?, code),
+      name = COALESCE(?, name),
+      industry = ?,
+      raw_industry = ?,
+      raw_concepts = ?,
+      source = ?,
+      confidence = ?,
+      updated_at = datetime('now')
+      WHERE id = ?`, values.concat(existing.id));
+  } else {
+    run(`INSERT INTO stock_industry_cache
+      (code, name, industry, raw_industry, raw_concepts, source, confidence)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`, values);
+  }
+}
+
+async function fetchEastmoneyIndustry(quote, query) {
+  const secid = toEastmoneySecid(quote.code || query);
+  if (!secid) return null;
+  const fields = 'f57,f58,f127,f128,f129,f198';
+  const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${encodeURIComponent(secid)}&fields=${encodeURIComponent(fields)}`;
+  const payload = await getJson(url, { Referer: 'https://quote.eastmoney.com/' });
+  const data = payload && payload.data;
+  if (!data) return null;
+  const rawIndustry = data.f127 || '';
+  const concepts = data.f129 || '';
+  const mapped = mapExternalIndustry(rawIndustry, concepts, data.f58 || quote.name || query);
+  if (!mapped) return null;
+  return {
+    industry: mapped,
+    confidence: 'external',
+    source: 'eastmoney-qt-stock-f127',
+    raw_industry: rawIndustry || null,
+    raw_concepts: concepts || null,
+    external_code: data.f57 || null
+  };
+}
+
+async function resolveStockIndustryWithCache(quote, query) {
+  const cached = getCachedStockIndustry(quote, query);
+  if (cached) return cached;
+
+  const local = resolveStockIndustry(quote, query);
+  if (local.industry) {
+    saveStockIndustryCache(quote, query, local);
+    return local;
+  }
+
+  try {
+    const external = await fetchEastmoneyIndustry(quote, query);
+    if (external && external.industry) {
+      saveStockIndustryCache(quote, query, external);
+      return external;
+    }
+  } catch (error) {
+    // Keep the stock analysis available when the external industry lookup fails.
+  }
+
+  return local;
 }
 
 function valuationProfile(quote) {
@@ -263,8 +440,8 @@ function flowProfile(quote) {
   return { score: 50, label: '资金持平', note: '主力资金基本持平，等待方向选择', netInflow };
 }
 
-function buildMysticProfile(quote, query, date) {
-  const resolved = resolveStockIndustry(quote, query);
+function buildMysticProfile(quote, query, date, providedIndustryProfile) {
+  const resolved = providedIndustryProfile || resolveStockIndustry(quote, query);
   const bazi = getBaZi(date);
   const fiveCount = countFiveElements(bazi, { includeHour: false });
   const scoring = scoreSwIndustries({
@@ -371,7 +548,7 @@ function buildDecision(mystic, value, technical, flow) {
 
 function buildIntegratedStockAnalysis(quote, query, options = {}) {
   const date = options.date ? new Date(options.date) : new Date();
-  const mystic = buildMysticProfile(quote, query, date);
+  const mystic = buildMysticProfile(quote, query, date, options.industryProfile);
   const value = valuationProfile(quote);
   const technical = technicalProfile(quote);
   const flow = flowProfile(quote);
@@ -413,5 +590,6 @@ function buildIntegratedStockAnalysis(quote, query, options = {}) {
 module.exports = {
   buildIntegratedStockAnalysis,
   normalizeStockQuery,
-  resolveStockIndustry
+  resolveStockIndustry,
+  resolveStockIndustryWithCache
 };

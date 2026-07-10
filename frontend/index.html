@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>五行投资日报</title>
-  <link rel="stylesheet" href="style.css?v=43">
+  <link rel="stylesheet" href="style.css?v=44">
 </head>
 <body>
   <div class="container">
@@ -19,6 +19,7 @@
     <nav class="main-nav">
       <button id="btnLatest" class="nav-btn active">大盘日报</button>
       <button id="btnStock" class="nav-btn">个股分析</button>
+      <button id="btnAssistant" class="nav-btn">AI助手</button>
       <button id="btnArchive" class="nav-btn">历史归档</button>
     </nav>
 
@@ -58,6 +59,19 @@
         </div>
       </section>
 
+      <!-- AI助手区域 -->
+      <section id="assistantSection" class="assistant-section" style="display: none;">
+        <div id="assistantMessages" class="assistant-messages">
+          <div class="assistant-message assistant">
+            <div class="assistant-bubble">可以问我日报结论、行业五行逻辑、关注标的复盘、知识库规则和项目用法。</div>
+          </div>
+        </div>
+        <div class="assistant-input-bar">
+          <textarea id="assistantInput" rows="2" placeholder="输入问题，例如：今天的主线为什么是这些行业？"></textarea>
+          <button id="btnAssistantSend" class="btn-primary">发送</button>
+        </div>
+      </section>
+
       <!-- 历史归档区域 -->
       <section id="archiveSection" class="archive-section" style="display: none;">
         <div class="archive-list" id="archiveList"></div>
@@ -71,6 +85,6 @@
     </footer>
   </div>
 
-  <script src="app.js?v=43"></script>
+  <script src="app.js?v=44"></script>
 </body>
 </html>

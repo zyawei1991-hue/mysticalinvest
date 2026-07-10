@@ -1500,6 +1500,85 @@ main {
   background: #5b4cdb;
 }
 
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* AI助手 */
+.assistant-section {
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.assistant-messages {
+  min-height: 360px;
+  max-height: 560px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 4px 16px;
+}
+
+.assistant-message {
+  display: flex;
+}
+
+.assistant-message.user {
+  justify-content: flex-end;
+}
+
+.assistant-bubble {
+  max-width: min(760px, 86%);
+  padding: 12px 14px;
+  border-radius: 10px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  background: var(--bg-color);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.assistant-message.user .assistant-bubble {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+}
+
+.assistant-loading {
+  color: var(--text-secondary);
+}
+
+.assistant-input-bar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: end;
+  border-top: 1px solid var(--border-color);
+  padding-top: 16px;
+}
+
+.assistant-input-bar textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 50px;
+  max-height: 140px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
+.assistant-input-bar textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
 /* 涓偂鍒嗘瀽缁撴灉 */
 .stock-result {
   display: none;

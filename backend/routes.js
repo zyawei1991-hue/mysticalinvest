@@ -4,7 +4,12 @@ const { getBaZi, countFiveElements, checkRelationship, getRecommendedIndustries,
 const { getStockQuote, fetchQuote, getStockTrend } = require('./market');
 const { getProviderStatus } = require('./historicalDataProvider');
 const { loadKnowledgeBase, searchKnowledgeBase } = require('./knowledgeBase');
-const { buildIntegratedStockAnalysis, normalizeStockQuery } = require('./stockInsightFramework');
+const { callLLM } = require('./llm');
+const {
+  buildIntegratedStockAnalysis,
+  normalizeStockQuery,
+  resolveStockIndustryWithCache
+} = require('./stockInsightFramework');
 
 const router = express.Router();
 
@@ -17,6 +22,94 @@ function parseJsonMaybe(value) {
   if (!value) return null;
   if (typeof value !== 'string') return value;
   try { return JSON.parse(value); } catch (e) { return null; }
+}
+
+function truncateText(value, maxLength = 1200) {
+  const text = String(value || '').trim();
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 1) + '…';
+}
+
+function compactJson(value, maxLength = 1600) {
+  if (value === undefined || value === null) return '';
+  try {
+    return truncateText(JSON.stringify(value), maxLength);
+  } catch (e) {
+    return truncateText(String(value), maxLength);
+  }
+}
+
+async function resolveAndCacheStockIndustryFromInput(name, code) {
+  const query = normalizeStockQuery(String(code || name || '').trim());
+  if (!query) return null;
+  try {
+    const quote = await getStockQuote(query);
+    const industry = await resolveStockIndustryWithCache(quote, name || code || query);
+    return { quote, industry };
+  } catch (error) {
+    console.warn('标的行业自动识别失败:', error.message);
+    return null;
+  }
+}
+
+function getLatestAssistantContext() {
+  const report = get(`SELECT report_date, report_type, card_summary, industries_json,
+    operation_advice_json, key_variables_json, market_momentum_json, risk_warning
+    FROM reports ORDER BY report_date DESC, created_at DESC LIMIT 1`);
+  const decisions = all(`SELECT report_date, report_type, conclusion, recommended_industries_json,
+    risk_scenario FROM decision_logs ORDER BY report_date DESC, updated_at DESC LIMIT 5`);
+  const watchlist = all('SELECT name, code, alert_level FROM watchlist ORDER BY created_at DESC LIMIT 20');
+  return {
+    latest_report: report ? {
+      report_date: report.report_date,
+      report_type: report.report_type,
+      card_summary: report.card_summary,
+      industries: parseJsonMaybe(report.industries_json),
+      operation_advice: parseJsonMaybe(report.operation_advice_json),
+      key_variables: parseJsonMaybe(report.key_variables_json),
+      market_momentum: parseJsonMaybe(report.market_momentum_json),
+      risk_warning: report.risk_warning
+    } : null,
+    recent_decisions: decisions.map(item => ({
+      ...item,
+      recommended_industries: parseJsonMaybe(item.recommended_industries_json)
+    })),
+    watchlist
+  };
+}
+
+function buildAssistantPrompt(message, history, kbItems, context) {
+  const kbText = (kbItems || []).map((item, index) => [
+    `#${index + 1} ${item.title || item.id || '知识条目'}`,
+    item.summary ? `摘要：${item.summary}` : '',
+    item.daily_use ? `日常用法：${item.daily_use}` : '',
+    item.forbidden_use ? `禁用边界：${item.forbidden_use}` : '',
+    item.content ? `内容：${truncateText(item.content, 800)}` : ''
+  ].filter(Boolean).join('\n')).join('\n\n');
+
+  const dialogue = (history || []).slice(-8).map(item => {
+    const role = item.role === 'assistant' ? '助手' : '用户';
+    return `${role}：${truncateText(item.content, 400)}`;
+  }).join('\n');
+
+  return [
+    '你是“五行投资日报”项目内置 AI 助手，模型由 caolele 兼容接口提供。',
+    '你的任务：基于项目日报、知识库、关注标的和用户对话，帮助用户解释日报、复盘模型、查询项目知识、生成观察清单。',
+    '约束：不要编造实时行情；涉及个股时提醒这是观察和复盘，不构成买卖建议；遇到数据缺失要明确说缺失；不要输出 token、key、webhook、私有 Base 链接。',
+    '回答风格：中文，短而具体，优先给结论和可执行下一步。',
+    '',
+    '【最近对话】',
+    dialogue || '无',
+    '',
+    '【项目上下文】',
+    compactJson(context, 2600),
+    '',
+    '【知识库命中】',
+    kbText || '无命中知识条目',
+    '',
+    '【用户问题】',
+    message
+  ].join('\n');
 }
 
 function normalizeArray(value) {
@@ -153,6 +246,48 @@ router.get('/knowledge-base', (req, res) => {
       })
     : loadKnowledgeBase();
   res.json(payload);
+});
+
+router.post('/assistant/chat', async (req, res) => {
+  const message = String(req.body?.message || '').trim();
+  if (!message) return res.status(400).json({ error: '缺少 message' });
+
+  const history = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  const kbResult = searchKnowledgeBase({
+    query: message,
+    usable_for: 'ai_chat',
+    status: 'active',
+    limit: 8
+  });
+  const fallbackKb = kbResult.items && kbResult.items.length > 0
+    ? kbResult
+    : searchKnowledgeBase({ usable_for: 'ai_chat', status: 'active', limit: 8 });
+  const context = getLatestAssistantContext();
+  const prompt = buildAssistantPrompt(message, history, fallbackKb.items || [], context);
+
+  try {
+    const answer = await callLLM(prompt);
+    res.json({
+      answer,
+      model: 'caolele',
+      analysis_source: 'project_knowledge_assistant_v1',
+      data_sources: {
+        latest_report: context.latest_report ? `${context.latest_report.report_date}/${context.latest_report.report_type}` : null,
+        knowledge_base_items: (fallbackKb.items || []).map(item => ({
+          id: item.id,
+          title: item.title,
+          domain: item.domain
+        })),
+        dialogue_turns: history.slice(-8).length
+      }
+    });
+  } catch (err) {
+    const missingKey = /LLM_API_KEY/.test(err.message || '');
+    res.status(missingKey ? 503 : 502).json({
+      error: missingKey ? 'AI助手暂未配置模型密钥' : 'AI助手调用失败',
+      message: missingKey ? '请在服务环境中配置 LLM_API_KEY 后重试' : err.message
+    });
+  }
 });
 
 router.get('/backtest/status', (req, res) => {
@@ -333,7 +468,7 @@ router.get('/watchlist', (req, res) => {
   res.json({ data: all('SELECT * FROM watchlist ORDER BY created_at DESC') });
 });
 
-router.post('/watchlist', (req, res) => {
+router.post('/watchlist', async (req, res) => {
   const { name, code, alert_level } = req.body;
   if (!name) return res.status(400).json({ error: '缺少标的名称' });
   const validLevels = ['red', 'yellow', 'green'];
@@ -341,8 +476,17 @@ router.post('/watchlist', (req, res) => {
     return res.status(400).json({ error: `alert_level 必须是 ${validLevels.join('/')}` });
   }
   try {
-    run('INSERT INTO watchlist (name, code, alert_level) VALUES (?, ?, ?)', [name, code, alert_level]);
-    res.json({ success: true, id: getLastInsertRowId(), message: '添加成功' });
+    const resolved = await resolveAndCacheStockIndustryFromInput(name, code);
+    const finalName = resolved?.quote?.name || name;
+    const finalCode = resolved?.quote?.code || code || null;
+    run('INSERT INTO watchlist (name, code, alert_level) VALUES (?, ?, ?)', [finalName, finalCode, alert_level]);
+    res.json({
+      success: true,
+      id: getLastInsertRowId(),
+      message: '添加成功',
+      industry: resolved?.industry?.industry || null,
+      industry_source: resolved?.industry?.source || null
+    });
   } catch (err) {
     if (err.message.includes('UNIQUE constraint')) {
       return res.status(409).json({ error: '该标的已在关注列表中' });
@@ -351,8 +495,9 @@ router.post('/watchlist', (req, res) => {
   }
 });
 
-router.put('/watchlist/:id', (req, res) => {
+router.put('/watchlist/:id', async (req, res) => {
   const { name, code, alert_level } = req.body;
+  if (name || code) await resolveAndCacheStockIndustryFromInput(name, code);
   run(`UPDATE watchlist SET name = COALESCE(?, name), code = COALESCE(?, code), alert_level = COALESCE(?, alert_level) WHERE id = ?`,
     [name, code, alert_level, req.params.id]);
   res.json({ success: true, message: '更新成功' });
@@ -371,24 +516,34 @@ router.get('/reports/:date/stocks', (req, res) => {
   res.json({ data: getReportStocks(report.id) });
 });
 
-router.post('/reports/:date/stocks', (req, res) => {
+router.post('/reports/:date/stocks', async (req, res) => {
   const report = get('SELECT id FROM reports WHERE report_date = ? AND report_type = ?', [req.params.date, req.query.type || 'morning']);
   if (!report) return res.status(404).json({ error: '未找到该日报' });
   const { name, code, alert_level, suggestion, reason } = req.body || {};
   const finalName = String(name || code || '').trim();
   const finalCode = String(code || '').trim();
   if (!finalName) return res.status(400).json({ error: '缺少标的名称或代码' });
+  const resolved = await resolveAndCacheStockIndustryFromInput(finalName, finalCode);
+  const savedName = resolved?.quote?.name || finalName;
+  const savedCode = resolved?.quote?.code || finalCode;
   run('INSERT INTO stocks (report_id, name, code, alert_level, suggestion, reason) VALUES (?, ?, ?, ?, ?, ?)',
-    [report.id, finalName, finalCode, alert_level || null, suggestion || '关注', reason || null]);
-  res.json({ success: true, id: getLastInsertRowId(), message: '标的已加入当前日报关注列表' });
+    [report.id, savedName, savedCode, alert_level || null, suggestion || '关注', reason || null]);
+  res.json({
+    success: true,
+    id: getLastInsertRowId(),
+    message: '标的已加入当前日报关注列表',
+    industry: resolved?.industry?.industry || null,
+    industry_source: resolved?.industry?.source || null
+  });
 });
 
-router.put('/reports/:date/stocks/:stockId', (req, res) => {
+router.put('/reports/:date/stocks/:stockId', async (req, res) => {
   const report = get('SELECT id FROM reports WHERE report_date = ? AND report_type = ?', [req.params.date, req.query.type || 'morning']);
   if (!report) return res.status(404).json({ error: '未找到该日报' });
   const { name, code, alert_level, suggestion, reason } = req.body || {};
   const existing = get('SELECT id FROM stocks WHERE id = ? AND report_id = ?', [req.params.stockId, report.id]);
   if (!existing) return res.status(404).json({ error: '未找到该标的' });
+  if (name || code) await resolveAndCacheStockIndustryFromInput(name, code);
   run(`UPDATE stocks SET
     name = COALESCE(?, name),
     code = COALESCE(?, code),
@@ -512,9 +667,10 @@ router.get('/stock/analyze', async (req, res) => {
   try {
     // 1. 获取实时行情
     const quote = await getStockQuote(normalizeStockQuery(q));
+    const industryProfile = await resolveStockIndustryWithCache(quote, q);
 
     // 2. 生成融合四维分析：行业五行先验 + 价投估值 + 量价资金确认
-    const analysis = buildIntegratedStockAnalysis(quote, q, { date: req.query.date });
+    const analysis = buildIntegratedStockAnalysis(quote, q, { date: req.query.date, industryProfile });
 
     res.json({
       name: quote.name,
@@ -530,6 +686,7 @@ router.get('/stock/analyze', async (req, res) => {
       data_sources: {
         realtime: 'Tencent quote API',
         valuation: 'Tencent quote PE_TTM/PB; Eastmoney Miaoxiang fallback when available',
+        industry: industryProfile.source || 'stock industry cache / project map / Eastmoney industry field',
         flow: 'Eastmoney Miaoxiang main-force flow',
         analysis: '规则引擎融合行业五行先验、PE_TTM/PB估值、涨跌幅和主力资金，未调用大模型'
       },

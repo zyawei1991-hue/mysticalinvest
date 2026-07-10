@@ -1,0 +1,383 @@
+{
+  "generatedAt": "2026-07-07T14:54:14.562Z",
+  "version": "kb-mvp-1",
+  "sourceDir": "docs/kb",
+  "itemCount": 13,
+  "domains": {
+    "case": {
+      "count": 1,
+      "active": 1,
+      "draft": 0
+    },
+    "compliance": {
+      "count": 1,
+      "active": 1,
+      "draft": 0
+    },
+    "dongxuan": {
+      "count": 2,
+      "active": 1,
+      "draft": 1
+    },
+    "market": {
+      "count": 1,
+      "active": 1,
+      "draft": 0
+    },
+    "output": {
+      "count": 1,
+      "active": 1,
+      "draft": 0
+    },
+    "strategy": {
+      "count": 3,
+      "active": 3,
+      "draft": 0
+    },
+    "system": {
+      "count": 4,
+      "active": 4,
+      "draft": 0
+    }
+  },
+  "items": [
+    {
+      "id": "case.backtest-mvp.20260707",
+      "title": "2026-07-07 月运趋势一致性 MVP 回测",
+      "domain": "case",
+      "status": "active",
+      "confidence": "medium",
+      "source": "frontend/wuxing-trend-backtest-data.json",
+      "owner": "engineering",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "backtest",
+        "algorithm_explain",
+        "ai_chat"
+      ],
+      "tags": [
+        "backtest",
+        "mvp",
+        "consistency"
+      ],
+      "path": "docs/kb/case/backtest-mvp-20260707.md",
+      "summary": "当前 MVP 回测使用 35 行业、36 个月、ETF 代理行情，验证月运评分与行业走势的趋势一致性。 这不是最终严谨版，主要用于跑通流程、暴露口径差异和生成对账页面。",
+      "daily_use": "- 作为方法验证和背离归因依据。 - 不把当前一致率当成最终有效性结论。 - 后续应和其它回测方案逐行对账。",
+      "forbidden_use": "",
+      "content": "结论 当前 MVP 回测使用 35 行业、36 个月、ETF 代理行情，验证月运评分与行业走势的趋势一致性。 这不是最终严谨版，主要用于跑通流程、暴露口径差异和生成对账页面。 当前四个口径 口径 可比较样本 一致率 重大背离 中度背离 --- ---: ---: ---: ---: 自然月当期 1218 35.63% 177 73 月运区间当期 1255 38.01% 220 101 前瞻20交易日 1256 39.17% 229 94 前瞻次月 1252 36.98% 209 93 限制 - 使用 ETF 代理，不是申万官方行业指数。 - 使用固定阈值和全行业分母，偏保守。 - 尚未完成 Rank IC、Top5-Bottom5 spread、安慰剂测试和留出样本验证。 用在日报里 - 作为方法验证和背离归因依据。 - 不把当前一致率当成最终有效性结论。 - 后续应和其它回测方案逐行对账。",
+      "content_preview": "结论 当前 MVP 回测使用 35 行业、36 个月、ETF 代理行情，验证月运评分与行业走势的趋势一致性。 这不是最终严谨版，主要用于跑通流程、暴露口径差异和生成对账页面。 当前四个口径 口径 可比较样本 一致率 重大背离 中度背离 --- ---: ---: ---: ---: 自然月当期 1218 35.63% 177 73 月运区间当期 1255 38.01% 220 101 前瞻20交易日 1256 39.17% 229 94 前瞻次月 1252 36.98% 209 93 限制 - 使用 ETF 代理，不是申万官方行业指数。 - 使用固定阈值和全行业分母，偏保守。 - 尚未完成 Rank IC、Top5-Bottom5 spread、安慰剂测试和留出样本验证。 用在日报里 - 作为方法验证和背离归因依据。 - 不把当前一致率当成最终有效性结论。 - 后续应和其它回测方案逐行对账。"
+    },
+    {
+      "id": "compliance.investment-disclaimer.boundary",
+      "title": "投资内容合规边界",
+      "domain": "compliance",
+      "status": "active",
+      "confidence": "high",
+      "source": "internal",
+      "owner": "compliance",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "daily_report",
+        "ai_chat",
+        "marketing"
+      ],
+      "tags": [
+        "compliance",
+        "disclaimer",
+        "boundary"
+      ],
+      "path": "docs/kb/compliance/investment-disclaimer-boundary.md",
+      "summary": "所有日报、回测、推送和 AI 对话都必须明确：内容仅供研究和决策辅助，不构成投资建议。",
+      "daily_use": "",
+      "forbidden_use": "",
+      "content": "结论 所有日报、回测、推送和 AI 对话都必须明确：内容仅供研究和决策辅助，不构成投资建议。 必须保留 - 投资有风险，入市需谨慎。 - 不构成任何投资建议。 - 模型输出仅供参考，需结合个人风险承受能力。 禁止表达 - 保本。 - 稳赚。 - 必涨。 - 必买。 - 无风险。 - 确定翻倍。 - 今天买入。 - 帮你操盘。 用户边界 用户问具体个股时，可以做： - 信息整理。 - 风险提示。 - 行业和资金背景说明。 - 候选分析。 不能做： - 替用户决定买卖。 - 给出确定仓位。 - 承诺收益。 - 规避合规免责声明。",
+      "content_preview": "结论 所有日报、回测、推送和 AI 对话都必须明确：内容仅供研究和决策辅助，不构成投资建议。 必须保留 - 投资有风险，入市需谨慎。 - 不构成任何投资建议。 - 模型输出仅供参考，需结合个人风险承受能力。 禁止表达 - 保本。 - 稳赚。 - 必涨。 - 必买。 - 无风险。 - 确定翻倍。 - 今天买入。 - 帮你操盘。 用户边界 用户问具体个股时，可以做： - 信息整理。 - 风险提示。 - 行业和资金背景说明。 - 候选分析。 不能做： - 替用户决定买卖。 - 给出确定仓位。 - 承诺收益。 - 规避合规免责声明。"
+    },
+    {
+      "id": "dongxuan.monthly-guide.2026-07-yiyue",
+      "title": "2026年乙未月月运投资总纲",
+      "domain": "dongxuan",
+      "status": "draft",
+      "confidence": "medium",
+      "source": "attachments/yiyue-month-guide-vol102-bingbi.html",
+      "owner": "content",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "daily_report",
+        "ai_chat",
+        "backtest"
+      ],
+      "tags": [
+        "2026-07",
+        "yiyue",
+        "month-guide",
+        "astock"
+      ],
+      "path": "docs/kb/dongxuan/yiyue-2026-07-month-guide.md",
+      "summary": "乙未月的投资总纲是：火气收敛入土，市场从题材情绪转向业绩验证和落地能力。 核心表达：",
+      "daily_use": "- 第一梯队可作为月度先验加权方向。 - 第三梯队必须加强资金和业绩确认，不可仅凭题材热度追高。 - 回避方向若出现强资金异动，标记为“背离/事件驱动”，不自动升为顺势推荐。",
+      "forbidden_use": "- 不对单只股票给出买入指令。 - 不把“地产链”泛化为所有地产标的，高负债和应收账款重的方向应降级。 - 不忽略中报窗口的业绩验证风险。",
+      "content": "结论 乙未月的投资总纲是：火气收敛入土，市场从题材情绪转向业绩验证和落地能力。 核心表达： 行业方向矩阵 梯队 方向 逻辑 风险 --- --- --- --- 第一梯队 基建、建材、水泥、工程机械、地产链家居家装、物业服务、农业种植、食品饮料、养殖 火生土、午未合土，资金找落地感和资产感，中报业绩兑现窗口 高负债地产不等于厚土生财，优先现金流健康、账款回收快 第二梯队 医药、中医药、创新药、教育、文化出版、内容设计、家居、环保、纺织美妆 乙木坐未为养，有萌芽修复 不追已炒飞概念，注意政策风险 第三梯队 电力电网、储能、特高压、光伏新技术、AI应用、传媒内容、军工电子、低空经济、机器人 火势仍反复活跃，但要看应用落地、订单和利润 无业绩支撑的纯概念在中报窗口容易被打回原形 回避 高负债地产链、食品安全风险票、航运、港口、水务、冷链 未月水弱、土克水，水向资金关注度低 金融权重更多看成交量和政策 操作节奏 - 月初小暑前后：从情绪高位进入整理，题材仍有但资金开始切换，仓位灵活观望。 - 中旬入伏后：消费、能源、电力、农业、食品、家居、基建等活土方向容易有阶段性表现。 - 大暑前后：分化最明显，好的兑现继续走，不好的开始漏气。 - 月末近立秋：资金偏防守，看红利、业绩和确定性。 用在日报里 - 第一梯队可作为月度先验加权方向。 - 第三梯队必须加强资金和业绩确认，不可仅凭题材热度追高。 - 回避方向若出现强资金异动，标记为“背离/事件驱动”，不自动升为顺势推荐。 禁止用法 - 不对单只股票给出买入指令。 - 不把“地产链”泛化为所有地产标的，高负债和应收账款重的方向应降级。 - 不忽略中报窗口的业绩验证风险。",
+      "content_preview": "结论 乙未月的投资总纲是：火气收敛入土，市场从题材情绪转向业绩验证和落地能力。 核心表达： 行业方向矩阵 梯队 方向 逻辑 风险 --- --- --- --- 第一梯队 基建、建材、水泥、工程机械、地产链家居家装、物业服务、农业种植、食品饮料、养殖 火生土、午未合土，资金找落地感和资产感，中报业绩兑现窗口 高负债地产不等于厚土生财，优先现金流健康、账款回收快 第二梯队 医药、中医药、创新药、教育、文化出版、内容设计、家居、环保、纺织美妆 乙木坐未为养，有萌芽修复 不追已炒飞概念，注意政策风险 第三梯队 电力电网、储能、特高压、光伏新技术、AI应用、传媒内容、军工电子、低空经济、机器人 火势仍反复活跃，但要看应用落地、订单和利润 无业绩支撑的纯概念在中报窗口容易被打回原形 回避 高负债地产链、食品安全风险票、航运、港口、水务、冷链 未月水弱、土克水，水向资金关注度低 金融权重更多看成交量和政策 操作节奏 - 月初小暑前后：从情绪高位进入整理，题材仍有但资金开始切换，仓位灵活观望。 - 中旬入伏后：消费、能源、电力、农业、食品、家居、基建等活土方向容易有阶段性表现。 - 大暑前后：分化最明显，好的兑现继续走，不好的开始漏气。 - 月末近立秋：资金偏防守，看红利、业绩和确定性。 用在日报里 - 第一梯队可作为月度先验加权方向。 - 第三梯队必须加强资金和业绩确认，不可仅凭题材热度追高。 - 回避方向若出现强资金异动，标记为“背离/事件驱动”，不自动升为顺势推荐。 禁止用法 - 不对单只股票给出买入指令。 - 不把“地产链”泛化为所有地产标的，高负债和应收账款重的方向应降级。 - 不忽略中报窗口的业绩验证风险。"
+    },
+    {
+      "id": "dongxuan.monthly-fortune.investment-principle",
+      "title": "月运作为投资先验的使用原则",
+      "domain": "dongxuan",
+      "status": "active",
+      "confidence": "medium",
+      "source": "internal_discussion",
+      "owner": "strategy",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "daily_report",
+        "ai_chat",
+        "algorithm_explain"
+      ],
+      "tags": [
+        "monthly-fortune",
+        "prior",
+        "investment"
+      ],
+      "path": "docs/kb/dongxuan/monthly-fortune-investment-principle.md",
+      "summary": "月运内容适合作为“月度市场风格先验”，不适合作为直接买卖指令。 它回答的是：本月市场更偏什么气、什么节奏、什么行业属性可能更容易被资金解释和接受。 日报回答的是：今天有没有市场确认、能不能做、怎么做、谁不适合做。",
+      "daily_use": "- 提供月度行业方向矩阵：顺势、次顺势、观察、回避。 - 提供操作节奏：月初、中旬、节气节点、月末。 - 提供风险关键词：追高、纯概念、业绩不兑现、现金流差。 - 作为行业分数的先验权重，必须经过资金、趋势、宽度和风险门控校验。",
+      "forbidden_use": "- 不写“某行业一定涨”。 - 不把月运当成替代行情、财报、成交量和风险控制的依据。 - 不用事后表现倒推修改月运先验。",
+      "content": "结论 月运内容适合作为“月度市场风格先验”，不适合作为直接买卖指令。 它回答的是：本月市场更偏什么气、什么节奏、什么行业属性可能更容易被资金解释和接受。 日报回答的是：今天有没有市场确认、能不能做、怎么做、谁不适合做。 用在日报里 - 提供月度行业方向矩阵：顺势、次顺势、观察、回避。 - 提供操作节奏：月初、中旬、节气节点、月末。 - 提供风险关键词：追高、纯概念、业绩不兑现、现金流差。 - 作为行业分数的先验权重，必须经过资金、趋势、宽度和风险门控校验。 推荐转译 禁止用法 - 不写“某行业一定涨”。 - 不把月运当成替代行情、财报、成交量和风险控制的依据。 - 不用事后表现倒推修改月运先验。",
+      "content_preview": "结论 月运内容适合作为“月度市场风格先验”，不适合作为直接买卖指令。 它回答的是：本月市场更偏什么气、什么节奏、什么行业属性可能更容易被资金解释和接受。 日报回答的是：今天有没有市场确认、能不能做、怎么做、谁不适合做。 用在日报里 - 提供月度行业方向矩阵：顺势、次顺势、观察、回避。 - 提供操作节奏：月初、中旬、节气节点、月末。 - 提供风险关键词：追高、纯概念、业绩不兑现、现金流差。 - 作为行业分数的先验权重，必须经过资金、趋势、宽度和风险门控校验。 推荐转译 禁止用法 - 不写“某行业一定涨”。 - 不把月运当成替代行情、财报、成交量和风险控制的依据。 - 不用事后表现倒推修改月运先验。"
+    },
+    {
+      "id": "market.industry-etf-proxy-map",
+      "title": "行业 ETF 代理映射",
+      "domain": "market",
+      "status": "active",
+      "confidence": "medium",
+      "source": "backend/industryProxyMap.js",
+      "owner": "engineering",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "daily_report",
+        "backtest",
+        "ai_chat"
+      ],
+      "tags": [
+        "industry",
+        "etf",
+        "proxy"
+      ],
+      "path": "docs/kb/market/industry-etf-proxy-map.md",
+      "summary": "当前项目用行业 ETF 作为可交易代理标的，用于日报展示、回测趋势验证和用户 ETF 视角表达。 这不是申万官方行业指数，属于可交易代理口径。",
+      "daily_use": "- ETF 用户优先看代理 ETF 的趋势、量能和相对强弱。 - 个股用户先看行业代理是否确认，再进入个股候选。 - 回测报告必须注明代理口径，避免和申万指数结果混淆。",
+      "forbidden_use": "- 不把 ETF 代理结果说成申万行业指数结果。 - 不在代理弱的行业上给出过强结论。",
+      "content": "结论 当前项目用行业 ETF 作为可交易代理标的，用于日报展示、回测趋势验证和用户 ETF 视角表达。 这不是申万官方行业指数，属于可交易代理口径。 当前原则 - 有直接行业 ETF 时，使用对应行业 ETF。 - 没有直接 ETF 时，使用相近主题或宽基代理，并标记 proxy: true。 - 回测解释中必须说明“ETF 代理”与“官方行业指数”不同。 主要映射示例 行业 代理 --- --- 银行 银行ETF 512800.SH 非银金融 证券ETF 512880.SH 房地产 房地产ETF 512200.SH 建筑材料 建材ETF 516750.SH 建筑装饰 基建ETF 516950.SH 计算机 计算机ETF 512720.SH 通信 通信ETF 515880.SH 传媒 传媒ETF 512980.SH 半导体 半导体ETF 512480.SH 白酒 酒ETF 512690.SH 新能源 新能源ETF 516160.SH 创新药 创新药ETF 159992.SZ 用在日报里 - ETF 用户优先看代理 ETF 的趋势、量能和相对强弱。 - 个股用户先看行业代理是否确认，再进入个股候选。 - 回测报告必须注明代理口径，避免和申万指数结果混淆。 禁止用法 - 不把 ETF 代理结果说成申万行业指数结果。 - 不在代理弱的行业上给出过强结论。",
+      "content_preview": "结论 当前项目用行业 ETF 作为可交易代理标的，用于日报展示、回测趋势验证和用户 ETF 视角表达。 这不是申万官方行业指数，属于可交易代理口径。 当前原则 - 有直接行业 ETF 时，使用对应行业 ETF。 - 没有直接 ETF 时，使用相近主题或宽基代理，并标记 proxy: true。 - 回测解释中必须说明“ETF 代理”与“官方行业指数”不同。 主要映射示例 行业 代理 --- --- 银行 银行ETF 512800.SH 非银金融 证券ETF 512880.SH 房地产 房地产ETF 512200.SH 建筑材料 建材ETF 516750.SH 建筑装饰 基建ETF 516950.SH 计算机 计算机ETF 512720.SH 通信 通信ETF 515880.SH 传媒 传媒ETF 512980.SH 半导体 半导体ETF 512480.SH 白酒 酒ETF 512690.SH 新能源 新能源ETF 516160.SH 创新药 创新药ETF 159992.SZ 用在日报里 - ETF 用户优先看代理 ETF 的趋势、量能和相对强弱。 - 个股用户先看行业代理是否确认，再进入个股候选。 - 回测报告必须注明代理口径，避免和申万指数结果混淆。 禁止用法 - 不把 ETF 代理结果说成申万行业指数结果。 - 不在代理弱的行业上给出过强结论。"
+    },
+    {
+      "id": "output.user-persona.guidance",
+      "title": "用户视角日报输出规则",
+      "domain": "output",
+      "status": "active",
+      "confidence": "high",
+      "source": "internal_discussion",
+      "owner": "product",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "daily_report",
+        "ai_chat"
+      ],
+      "tags": [
+        "persona",
+        "output",
+        "report"
+      ],
+      "path": "docs/kb/output/user-persona-guidance.md",
+      "summary": "日报要从算法展示变成面向用户的操作翻译器。 第一屏优先回答： 1. 今天能不能进攻。 2. 如果要做，做什么方向。 3. 什么人不适合做。",
+      "daily_use": "- 先给动作，再给依据。 - 先讲行业和 ETF，再讲个股候选。 - 明确“不适合做”的人群和场景。",
+      "forbidden_use": "- 不用大段玄学解释压过主结论。 - 不把候选池写成确定性买入清单。",
+      "content": "结论 日报要从算法展示变成面向用户的操作翻译器。 第一屏优先回答： 1. 今天能不能进攻。 2. 如果要做，做什么方向。 3. 什么人不适合做。 用户类型 用户 输出重点 --- --- ETF 用户 行业 ETF、宽基 ETF、仓位建议 个股用户 候选池，不给必买结论 已持仓用户 持有、减仓、换仓、观察 稳健用户 风险提示、少交易、等待确认 玄学兴趣用户 五行逻辑放在依据和附录，不抢主结论 用在日报里 - 先给动作，再给依据。 - 先讲行业和 ETF，再讲个股候选。 - 明确“不适合做”的人群和场景。 禁止用法 - 不用大段玄学解释压过主结论。 - 不把候选池写成确定性买入清单。",
+      "content_preview": "结论 日报要从算法展示变成面向用户的操作翻译器。 第一屏优先回答： 1. 今天能不能进攻。 2. 如果要做，做什么方向。 3. 什么人不适合做。 用户类型 用户 输出重点 --- --- ETF 用户 行业 ETF、宽基 ETF、仓位建议 个股用户 候选池，不给必买结论 已持仓用户 持有、减仓、换仓、观察 稳健用户 风险提示、少交易、等待确认 玄学兴趣用户 五行逻辑放在依据和附录，不抢主结论 用在日报里 - 先给动作，再给依据。 - 先讲行业和 ETF，再讲个股候选。 - 明确“不适合做”的人群和场景。 禁止用法 - 不用大段玄学解释压过主结论。 - 不把候选池写成确定性买入清单。"
+    },
+    {
+      "id": "strategy.daily-report.algorithm-v21",
+      "title": "日报推荐逻辑 V2.1",
+      "domain": "strategy",
+      "status": "active",
+      "confidence": "high",
+      "source": "docs/daily-report-recommendation-logic-v21.md",
+      "owner": "engineering",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "daily_report",
+        "algorithm_explain",
+        "ai_chat"
+      ],
+      "tags": [
+        "algorithm",
+        "daily-report",
+        "risk-gating"
+      ],
+      "path": "docs/kb/strategy/daily-report-algorithm.md",
+      "summary": "五行投资日报不是直接给出单一买点，而是把当日市场信息压缩成： 1. 整体策略。 2. 行业候选池。 3. 个股或 ETF 关注池。 当前算法更适合作为 Top5 行业候选池和方向过滤，不适合作为 Top1 重仓买入信号。",
+      "daily_use": "- 月运先验只提供方向背景。 - 资金、趋势、宽度和风险门控决定是否可执行。 - 用户输出先给动作，再给依据。",
+      "forbidden_use": "- 不因为五行分高就鼓励追买。 - 不把关注池写成买入池。 - 不让 LLM 改变行业主排序，只允许做表达和理由整理。",
+      "content": "结论 五行投资日报不是直接给出单一买点，而是把当日市场信息压缩成： 1. 整体策略。 2. 行业候选池。 3. 个股或 ETF 关注池。 当前算法更适合作为 Top5 行业候选池和方向过滤，不适合作为 Top1 重仓买入信号。 数据流 主要输入： - A 股指数。 - 市场宽度。 - 涨停跌停。 - 主力资金、ETF 流向、换手率。 - 海外市场。 - 五行日历。 - 行业五行暴露框架。 风险门控 偏进攻必须多因子共振；防守只需要关键风险触发。 用在日报里 - 月运先验只提供方向背景。 - 资金、趋势、宽度和风险门控决定是否可执行。 - 用户输出先给动作，再给依据。 禁止用法 - 不因为五行分高就鼓励追买。 - 不把关注池写成买入池。 - 不让 LLM 改变行业主排序，只允许做表达和理由整理。",
+      "content_preview": "结论 五行投资日报不是直接给出单一买点，而是把当日市场信息压缩成： 1. 整体策略。 2. 行业候选池。 3. 个股或 ETF 关注池。 当前算法更适合作为 Top5 行业候选池和方向过滤，不适合作为 Top1 重仓买入信号。 数据流 主要输入： - A 股指数。 - 市场宽度。 - 涨停跌停。 - 主力资金、ETF 流向、换手率。 - 海外市场。 - 五行日历。 - 行业五行暴露框架。 风险门控 偏进攻必须多因子共振；防守只需要关键风险触发。 用在日报里 - 月运先验只提供方向背景。 - 资金、趋势、宽度和风险门控决定是否可执行。 - 用户输出先给动作，再给依据。 禁止用法 - 不因为五行分高就鼓励追买。 - 不把关注池写成买入池。 - 不让 LLM 改变行业主排序，只允许做表达和理由整理。"
+    },
+    {
+      "id": "strategy.validation.mystic-investment-effectiveness",
+      "title": "玄学投资指导有效性验证框架",
+      "domain": "strategy",
+      "status": "active",
+      "confidence": "high",
+      "source": "internal_discussion",
+      "owner": "strategy",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "backtest",
+        "daily_report",
+        "ai_chat"
+      ],
+      "tags": [
+        "validation",
+        "backtest",
+        "effectiveness"
+      ],
+      "path": "docs/kb/strategy/mystic-investment-effectiveness-validation.md",
+      "summary": "有效性验证不是证明玄学绝对正确，而是验证玄学月运作为结构化先验，对市场解释、行业排序、风险提示和用户决策是否有增量价值。",
+      "daily_use": "",
+      "forbidden_use": "",
+      "content": "结论 有效性验证不是证明玄学绝对正确，而是验证玄学月运作为结构化先验，对市场解释、行业排序、风险提示和用户决策是否有增量价值。 四层验证 1. 解释力：月运是否能解释当期市场。 2. 预测力：月运是否能提前指导后续行情。 3. 增量价值：加入月运先验后是否优于纯市场模型。 4. 用户价值：是否减少追高、改善等待和持仓判断。 核心指标 - Rank IC。 - Top5 超额收益。 - Top5-Bottom5 spread。 - 胜率和方向一致率。 - 最大回撤和波动。 - 年度稳定性。 防自嗨规则 - 月运内容必须在行情验证前冻结。 - 行业映射和剔除规则必须提前定义。 - 不只报最佳口径，同时报自然月、节气月、20 交易日和次月。 - 做安慰剂测试：随机打乱月份、随机打乱行业、平移一个月。 - 做留出验证：前 24-30 个月调规则，后 6-12 个月盲测。 判断标准 - 如果 Rank IC 长期为正，Top-Bottom spread 稳定为正，有价值。 - 如果只在个别月份有效，更像叙事解释。 - 如果综合模型优于纯市场模型，说明月运有增量价值。 - 如果只靠筛选样本才能超过 60%，但全样本不稳，不能认为客观有效。",
+      "content_preview": "结论 有效性验证不是证明玄学绝对正确，而是验证玄学月运作为结构化先验，对市场解释、行业排序、风险提示和用户决策是否有增量价值。 四层验证 1. 解释力：月运是否能解释当期市场。 2. 预测力：月运是否能提前指导后续行情。 3. 增量价值：加入月运先验后是否优于纯市场模型。 4. 用户价值：是否减少追高、改善等待和持仓判断。 核心指标 - Rank IC。 - Top5 超额收益。 - Top5-Bottom5 spread。 - 胜率和方向一致率。 - 最大回撤和波动。 - 年度稳定性。 防自嗨规则 - 月运内容必须在行情验证前冻结。 - 行业映射和剔除规则必须提前定义。 - 不只报最佳口径，同时报自然月、节气月、20 交易日和次月。 - 做安慰剂测试：随机打乱月份、随机打乱行业、平移一个月。 - 做留出验证：前 24-30 个月调规则，后 6-12 个月盲测。 判断标准 - 如果 Rank IC 长期为正，Top-Bottom spread 稳定为正，有价值。 - 如果只在个别月份有效，更像叙事解释。 - 如果综合模型优于纯市场模型，说明月运有增量价值。 - 如果只靠筛选样本才能超过 60%，但全样本不稳，不能认为客观有效。"
+    },
+    {
+      "id": "strategy.monthly-prior.daily-validation",
+      "title": "月运先验与日报验证的结合规则",
+      "domain": "strategy",
+      "status": "active",
+      "confidence": "medium",
+      "source": "internal_discussion",
+      "owner": "strategy",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "daily_report",
+        "ai_chat",
+        "algorithm_explain"
+      ],
+      "tags": [
+        "monthly-prior",
+        "validation",
+        "report-flow"
+      ],
+      "path": "docs/kb/strategy/monthly-prior-daily-validation.md",
+      "summary": "月运负责“本月市场应该怎么看”，日报负责“今天能不能做、怎么做、谁不适合做”。",
+      "daily_use": "",
+      "forbidden_use": "- 不直接把月运梯队转换成买入建议。 - 不忽略当日市场风险和用户仓位。",
+      "content": "结论 月运负责“本月市场应该怎么看”，日报负责“今天能不能做、怎么做、谁不适合做”。 评分建议 初始规则： - 第一梯队：月度先验 +10。 - 第二梯队：月度先验 +5。 - 第三梯队：月度先验 +2，必须有资金确认。 - 回避方向：月度先验 -10。 每日确认条件 月运看好的方向要进入日报动作建议，至少需要满足一类市场确认： - 行业 ETF 放量或趋势改善。 - 行业相对宽基跑赢。 - 主力资金或 ETF 资金没有明显背离。 - 市场宽度和整体策略不处于防守降噪。 降级规则 - 月运看好但资金、趋势不确认：降级为观察。 - 月运回避但资金强冲：标记为事件驱动或背离机会，不当作常规顺势。 - 全市场风险触发：所有月运加权都让位于风险门控。 禁止用法 - 不直接把月运梯队转换成买入建议。 - 不忽略当日市场风险和用户仓位。",
+      "content_preview": "结论 月运负责“本月市场应该怎么看”，日报负责“今天能不能做、怎么做、谁不适合做”。 评分建议 初始规则： - 第一梯队：月度先验 +10。 - 第二梯队：月度先验 +5。 - 第三梯队：月度先验 +2，必须有资金确认。 - 回避方向：月度先验 -10。 每日确认条件 月运看好的方向要进入日报动作建议，至少需要满足一类市场确认： - 行业 ETF 放量或趋势改善。 - 行业相对宽基跑赢。 - 主力资金或 ETF 资金没有明显背离。 - 市场宽度和整体策略不处于防守降噪。 降级规则 - 月运看好但资金、趋势不确认：降级为观察。 - 月运回避但资金强冲：标记为事件驱动或背离机会，不当作常规顺势。 - 全市场风险触发：所有月运加权都让位于风险门控。 禁止用法 - 不直接把月运梯队转换成买入建议。 - 不忽略当日市场风险和用户仓位。"
+    },
+    {
+      "id": "kb.investment.file-intake-workflow",
+      "title": "投资日报子知识库文件导入工作流",
+      "domain": "system",
+      "status": "active",
+      "confidence": "high",
+      "source": "user_decision_2026-07-07",
+      "owner": "product",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "daily_report",
+        "system_ops",
+        "ai_chat"
+      ],
+      "tags": [
+        "investment-daily",
+        "file-intake",
+        "workflow"
+      ],
+      "path": "docs/kb/system/investment-kb-file-intake-workflow.md",
+      "summary": "当前阶段先采用“团队定期发文件 - 项目收件箱 - draft 知识卡 - 人工审核 - active 知识库”的方式搭建投资日报子知识库。 这是一条低权限、低耦合、可审计的路径，不依赖飞书文档、多维表、Notion、ima 或其它平台的长期运行权限。",
+      "daily_use": "- 原始材料进入 docs/kb-inbox/files/。 - 自动生成的草稿进入 docs/kb-drafts/。 - 审核通过后发布到 docs/kb/<domain /。 - 构建脚本生成 frontend/knowledge-base-data.json。 - 日报程序只读取 active + usable_for=daily_report 的知识。 导入命令： 发布命令：",
+      "forbidden_use": "- 不把文件导入生成的 draft 直接用于日报。 - 不绕过人工审核把草稿变 active。 - 不把未验证的玄学信号写成投资建议。 - 不删除 data/kb-audit-log.jsonl 中的审计记录。",
+      "content": "结论 当前阶段先采用“团队定期发文件 - 项目收件箱 - draft 知识卡 - 人工审核 - active 知识库”的方式搭建投资日报子知识库。 这是一条低权限、低耦合、可审计的路径，不依赖飞书文档、多维表、Notion、ima 或其它平台的长期运行权限。 用在日报里 - 原始材料进入 docs/kb-inbox/files/。 - 自动生成的草稿进入 docs/kb-drafts/。 - 审核通过后发布到 docs/kb/<domain /。 - 构建脚本生成 frontend/knowledge-base-data.json。 - 日报程序只读取 active + usable_for=daily_report 的知识。 导入命令： 发布命令： 禁止用法 - 不把文件导入生成的 draft 直接用于日报。 - 不绕过人工审核把草稿变 active。 - 不把未验证的玄学信号写成投资建议。 - 不删除 data/kb-audit-log.jsonl 中的审计记录。",
+      "content_preview": "结论 当前阶段先采用“团队定期发文件 - 项目收件箱 - draft 知识卡 - 人工审核 - active 知识库”的方式搭建投资日报子知识库。 这是一条低权限、低耦合、可审计的路径，不依赖飞书文档、多维表、Notion、ima 或其它平台的长期运行权限。 用在日报里 - 原始材料进入 docs/kb-inbox/files/。 - 自动生成的草稿进入 docs/kb-drafts/。 - 审核通过后发布到 docs/kb/<domain /。 - 构建脚本生成 frontend/knowledge-base-data.json。 - 日报程序只读取 active + usable_for=daily_report 的知识。 导入命令： 发布命令： 禁止用法 - 不把文件导入生成的 draft 直接用于日报。 - 不绕过人工审核把草稿变 active。 - 不把未验证的玄学信号写成投资建议。 - 不删除 data/kb-audit-log.jsonl 中的审计记录。"
+    },
+    {
+      "id": "kb.index",
+      "title": "五行投资日报知识库索引",
+      "domain": "system",
+      "status": "active",
+      "confidence": "high",
+      "source": "internal",
+      "owner": "project",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "daily_report",
+        "ai_chat",
+        "algorithm_explain"
+      ],
+      "tags": [
+        "index",
+        "knowledge-base"
+      ],
+      "path": "docs/kb/00-index.md",
+      "summary": "知识库是日报算法、月运先验、输出表达、合规边界和未来 AI 对话的统一依据。 一期采用结构化 Markdown 作为源文件，并生成 frontend/knowledge-base-data.json 供页面和程序调用。",
+      "daily_use": "日报生成流程：",
+      "forbidden_use": "- 不把玄学先验直接写成确定性买卖指令。 - 不在缺少市场确认时输出“必涨、必中、稳赚”。 - 不绕过合规边界直接给个股交易结论。",
+      "content": "结论 知识库是日报算法、月运先验、输出表达、合规边界和未来 AI 对话的统一依据。 一期采用结构化 Markdown 作为源文件，并生成 frontend/knowledge-base-data.json 供页面和程序调用。 当前分层 - dongxuan：东玄、五行、干支、节气、月运内容。 - market：行业、ETF、市场变量、数据源映射。 - strategy：日报算法、月运先验、回测验证、风险门控。 - output：用户视角、日报表达、飞书推送表达。 - compliance：免责声明、禁用表达、用户边界。 - case：已落地回测、案例和复盘。 用在日报里 日报生成流程： 禁止用法 - 不把玄学先验直接写成确定性买卖指令。 - 不在缺少市场确认时输出“必涨、必中、稳赚”。 - 不绕过合规边界直接给个股交易结论。",
+      "content_preview": "结论 知识库是日报算法、月运先验、输出表达、合规边界和未来 AI 对话的统一依据。 一期采用结构化 Markdown 作为源文件，并生成 frontend/knowledge-base-data.json 供页面和程序调用。 当前分层 - dongxuan：东玄、五行、干支、节气、月运内容。 - market：行业、ETF、市场变量、数据源映射。 - strategy：日报算法、月运先验、回测验证、风险门控。 - output：用户视角、日报表达、飞书推送表达。 - compliance：免责声明、禁用表达、用户边界。 - case：已落地回测、案例和复盘。 用在日报里 日报生成流程： 禁止用法 - 不把玄学先验直接写成确定性买卖指令。 - 不在缺少市场确认时输出“必涨、必中、稳赚”。 - 不绕过合规边界直接给个股交易结论。"
+    },
+    {
+      "id": "kb.governance.full-plan",
+      "title": "玄学知识库与投资日报子库建设维护方案",
+      "domain": "system",
+      "status": "active",
+      "confidence": "high",
+      "source": "docs/knowledge-base-establishment-maintenance-plan.md",
+      "owner": "product",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "daily_report",
+        "ai_chat",
+        "system_ops"
+      ],
+      "tags": [
+        "governance",
+        "knowledge-base",
+        "sync",
+        "multi-agent"
+      ],
+      "path": "docs/kb/system/knowledge-base-governance-plan.md",
+      "summary": "当前 daily-report 项目维护的是投资日报子知识库，不是玄学母知识库。完整体系应采用“母知识库 - 应用子库 - 运行层审计”的分层架构，所有同步内容先进入 draft/review，不直接成为 active。",
+      "daily_use": "- 页面文档：http://117.72.58.55/daily/knowledge-base-governance.html - 本地文档：docs/knowledge-base-establishment-maintenance-plan.md - 投资日报程序只读取 status=active 且 usable_for=daily_report 的知识。 - 母库同步到投资日报子库时，默认生成 draft，必须人工审核后发布。",
+      "forbidden_use": "- 不把投资日报子库当成玄学母库。 - 不让同步程序直接发布 active。 - 不让 Runtime Agent 修改母库或合规规则。 - 不把未经回测或未标注边界的玄学信号写成投资建议。",
+      "content": "结论 当前 daily-report 项目维护的是投资日报子知识库，不是玄学母知识库。完整体系应采用“母知识库 - 应用子库 - 运行层审计”的分层架构，所有同步内容先进入 draft/review，不直接成为 active。 用在日报里 - 页面文档：http://117.72.58.55/daily/knowledge-base-governance.html - 本地文档：docs/knowledge-base-establishment-maintenance-plan.md - 投资日报程序只读取 status=active 且 usable_for=daily_report 的知识。 - 母库同步到投资日报子库时，默认生成 draft，必须人工审核后发布。 禁止用法 - 不把投资日报子库当成玄学母库。 - 不让同步程序直接发布 active。 - 不让 Runtime Agent 修改母库或合规规则。 - 不把未经回测或未标注边界的玄学信号写成投资建议。",
+      "content_preview": "结论 当前 daily-report 项目维护的是投资日报子知识库，不是玄学母知识库。完整体系应采用“母知识库 - 应用子库 - 运行层审计”的分层架构，所有同步内容先进入 draft/review，不直接成为 active。 用在日报里 - 页面文档：http://117.72.58.55/daily/knowledge-base-governance.html - 本地文档：docs/knowledge-base-establishment-maintenance-plan.md - 投资日报程序只读取 status=active 且 usable_for=daily_report 的知识。 - 母库同步到投资日报子库时，默认生成 draft，必须人工审核后发布。 禁止用法 - 不把投资日报子库当成玄学母库。 - 不让同步程序直接发布 active。 - 不让 Runtime Agent 修改母库或合规规则。 - 不把未经回测或未标注边界的玄学信号写成投资建议。"
+    },
+    {
+      "id": "kb.operation.calling",
+      "title": "知识库查看与程序调用方式",
+      "domain": "system",
+      "status": "active",
+      "confidence": "high",
+      "source": "docs/knowledge-base-plan.md",
+      "owner": "product",
+      "updated": "2026-07-07",
+      "usable_for": [
+        "daily_report",
+        "ai_chat",
+        "system_ops"
+      ],
+      "tags": [
+        "knowledge-base",
+        "api",
+        "integration"
+      ],
+      "path": "docs/kb/system/knowledge-base-operation.md",
+      "summary": "知识库一期采用“结构化 Markdown 源文件 + 前端 JSON 索引 + 后端检索 API”三层结构。 人可以通过页面查看，日报程序可以读取 JSON 或调用 API，未来 AI 对话也应先检索知识库再回答。",
+      "daily_use": "- 页面查看：http://117.72.58.55/daily/knowledge-base.html - 静态数据：http://117.72.58.55/daily/knowledge-base-data.json - 检索 API：http://117.72.58.55/daily/api/knowledge-base?q=月运&usable_for=daily_report&limit=5 - 本地模块：backend/knowledgeBase.js - 重建命令：node bin/build-knowledge-base.js",
+      "forbidden_use": "- 不直接修改生成后的 frontend/knowledge-base-data.json，应修改 docs/kb/**/*.md 后重建。 - 不让日报程序绕过 status=active 的约束直接使用 draft 知识。 - 不把没有进入知识库的临时聊天结论当成正式算法依据。",
+      "content": "结论 知识库一期采用“结构化 Markdown 源文件 + 前端 JSON 索引 + 后端检索 API”三层结构。 人可以通过页面查看，日报程序可以读取 JSON 或调用 API，未来 AI 对话也应先检索知识库再回答。 用在日报里 - 页面查看：http://117.72.58.55/daily/knowledge-base.html - 静态数据：http://117.72.58.55/daily/knowledge-base-data.json - 检索 API：http://117.72.58.55/daily/api/knowledge-base?q=月运&usable_for=daily_report&limit=5 - 本地模块：backend/knowledgeBase.js - 重建命令：node bin/build-knowledge-base.js 程序调用约定 日报程序调用知识库时，至少带上用途过滤： AI 对话调用知识库时，至少带上： 返回结果必须保留 id、title、summary、daily_use、forbidden_use 和 source，便于审计引用来源。 禁止用法 - 不直接修改生成后的 frontend/knowledge-base-data.json，应修改 docs/kb/**/*.md 后重建。 - 不让日报程序绕过 status=active 的约束直接使用 draft 知识。 - 不把没有进入知识库的临时聊天结论当成正式算法依据。",
+      "content_preview": "结论 知识库一期采用“结构化 Markdown 源文件 + 前端 JSON 索引 + 后端检索 API”三层结构。 人可以通过页面查看，日报程序可以读取 JSON 或调用 API，未来 AI 对话也应先检索知识库再回答。 用在日报里 - 页面查看：http://117.72.58.55/daily/knowledge-base.html - 静态数据：http://117.72.58.55/daily/knowledge-base-data.json - 检索 API：http://117.72.58.55/daily/api/knowledge-base?q=月运&usable_for=daily_report&limit=5 - 本地模块：backend/knowledgeBase.js - 重建命令：node bin/build-knowledge-base.js 程序调用约定 日报程序调用知识库时，至少带上用途过滤： AI 对话调用知识库时，至少带上： 返回结果必须保留 id、title、summary、daily_use、forbidden_use 和 source，便于审计引用来源。 禁止用法 - 不直接修改生成后的 frontend/knowledge-base-data.json，应修改 docs/kb/**/*.md 后重建。 - 不让日报程序绕过 status=active 的约束直接使用 draft 知识。 - 不把没有进入知识库的临时聊天结论当成正式算法依据。"
+    }
+  ]
+}

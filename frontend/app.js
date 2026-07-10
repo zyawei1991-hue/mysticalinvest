@@ -10,13 +10,16 @@ let currentReportType = getDefaultReportType();
 let currentPresentationMode = getDefaultPresentationMode();
 let currentReportData = null;
 let latestBacktestCalibration = null;
+let assistantMessages = [];
 
 // DOM元素
 const btnLatest = document.getElementById('btnLatest');
 const btnStock = document.getElementById('btnStock');
+const btnAssistant = document.getElementById('btnAssistant');
 const btnArchive = document.getElementById('btnArchive');
 const todaySection = document.getElementById('todaySection');
 const stockSection = document.getElementById('stockSection');
+const assistantSection = document.getElementById('assistantSection');
 const archiveSection = document.getElementById('archiveSection');
 const loading = document.getElementById('loading');
 const reportContent = document.getElementById('reportContent');
@@ -33,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setActivePresentationTab(currentPresentationMode);
   loadLatest();
   initStockAnalysis();
+  initAssistant();
 
   btnLatest.addEventListener('click', () => {
     setActiveNav('latest');
@@ -40,6 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnStock.addEventListener('click', () => {
     setActiveNav('stock');
+  });
+
+  btnAssistant?.addEventListener('click', () => {
+    setActiveNav('assistant');
   });
 
   btnArchive.addEventListener('click', () => {
@@ -52,9 +60,11 @@ document.addEventListener('DOMContentLoaded', () => {
 function setActiveNav(nav) {
   btnLatest.classList.remove('active');
   btnStock.classList.remove('active');
+  btnAssistant?.classList.remove('active');
   btnArchive.classList.remove('active');
   todaySection.style.display = 'none';
   stockSection.style.display = 'none';
+  if (assistantSection) assistantSection.style.display = 'none';
   archiveSection.style.display = 'none';
 
   if (nav === 'latest') {
@@ -63,6 +73,9 @@ function setActiveNav(nav) {
   } else if (nav === 'stock') {
     btnStock.classList.add('active');
     stockSection.style.display = 'block';
+  } else if (nav === 'assistant') {
+    btnAssistant?.classList.add('active');
+    if (assistantSection) assistantSection.style.display = 'block';
   } else if (nav === 'archive') {
     btnArchive.classList.add('active');
     archiveSection.style.display = 'block';
@@ -157,6 +170,74 @@ function initStockAnalysis() {
 
   // 加载历史记录
   loadStockHistory();
+}
+
+function initAssistant() {
+  const input = document.getElementById('assistantInput');
+  const send = document.getElementById('btnAssistantSend');
+  if (!input || !send) return;
+
+  send.addEventListener('click', sendAssistantMessage);
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendAssistantMessage();
+    }
+  });
+}
+
+function renderAssistantMessages(isLoading) {
+  const container = document.getElementById('assistantMessages');
+  if (!container) return;
+  let html = '';
+  assistantMessages.forEach(item => {
+    html += `<div class="assistant-message ${item.role === 'assistant' ? 'assistant' : 'user'}">
+      <div class="assistant-bubble">${escapeHtml(item.content)}</div>
+    </div>`;
+  });
+  if (isLoading) {
+    html += `<div class="assistant-message assistant">
+      <div class="assistant-bubble assistant-loading">正在读取日报、知识库和对话上下文...</div>
+    </div>`;
+  }
+  if (!html) {
+    html = `<div class="assistant-message assistant">
+      <div class="assistant-bubble">可以问我日报结论、行业五行逻辑、关注标的复盘、知识库规则和项目用法。</div>
+    </div>`;
+  }
+  container.innerHTML = html;
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendAssistantMessage() {
+  const input = document.getElementById('assistantInput');
+  const send = document.getElementById('btnAssistantSend');
+  const message = input ? input.value.trim() : '';
+  if (!message) return;
+
+  assistantMessages.push({ role: 'user', content: message });
+  if (input) input.value = '';
+  if (send) send.disabled = true;
+  renderAssistantMessages(true);
+
+  try {
+    const res = await fetch(`${API_BASE}/assistant/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        messages: assistantMessages.slice(-8)
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || data.error || 'AI助手调用失败');
+    assistantMessages.push({ role: 'assistant', content: data.answer || '没有生成有效回答。' });
+  } catch (err) {
+    assistantMessages.push({ role: 'assistant', content: 'AI助手暂不可用：' + err.message });
+  } finally {
+    if (send) send.disabled = false;
+    renderAssistantMessages(false);
+  }
 }
 
 // 个股四维分析

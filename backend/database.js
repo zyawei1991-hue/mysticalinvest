@@ -62,6 +62,18 @@ function initDatabase() {
       code TEXT,
       added_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE IF NOT EXISTS stock_industry_cache (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT,
+      name TEXT,
+      industry TEXT NOT NULL,
+      raw_industry TEXT,
+      raw_concepts TEXT,
+      source TEXT,
+      confidence TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE IF NOT EXISTS stock_analysis_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       query_time DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -301,7 +313,10 @@ function initDatabase() {
     'ALTER TABLE ia_daily_bars ADD COLUMN pe REAL',
     'ALTER TABLE ia_daily_bars ADD COLUMN pb REAL',
     'ALTER TABLE ia_daily_bars ADD COLUMN total_mv REAL',
-    'ALTER TABLE ia_daily_bars ADD COLUMN circ_mv REAL'
+    'ALTER TABLE ia_daily_bars ADD COLUMN circ_mv REAL',
+    'ALTER TABLE watchlist ADD COLUMN alert_level TEXT',
+    'ALTER TABLE watchlist ADD COLUMN created_at DATETIME',
+    "UPDATE watchlist SET created_at = COALESCE(created_at, added_at, datetime('now'))"
   ];
   for (const sql of migrations) {
     try { db.exec(sql); } catch(e) {}
@@ -314,6 +329,8 @@ function initDatabase() {
     'CREATE INDEX IF NOT EXISTS idx_snapshots_report_id ON report_stock_snapshots(report_id)',
     'CREATE INDEX IF NOT EXISTS idx_snapshots_watchlist_id ON report_stock_snapshots(watchlist_id)',
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_watchlist_name ON watchlist(name)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_industry_cache_code ON stock_industry_cache(code)',
+    'CREATE INDEX IF NOT EXISTS idx_stock_industry_cache_name ON stock_industry_cache(name)',
     'CREATE INDEX IF NOT EXISTS idx_stock_history_time ON stock_analysis_history(query_time DESC)',
     'CREATE INDEX IF NOT EXISTS idx_stock_history_code ON stock_analysis_history(code)',
     'CREATE INDEX IF NOT EXISTS idx_decision_logs_date_type ON decision_logs(report_date DESC, report_type)',

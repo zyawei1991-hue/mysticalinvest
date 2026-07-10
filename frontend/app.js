@@ -11,11 +11,11 @@ let currentPresentationMode = getDefaultPresentationMode();
 let currentReportData = null;
 let latestBacktestCalibration = null;
 let assistantMessages = [];
+let aiFloatIdleTimer = null;
 
 // DOM元素
 const btnLatest = document.getElementById('btnLatest');
 const btnStock = document.getElementById('btnStock');
-const btnAssistant = document.getElementById('btnAssistant');
 const btnArchive = document.getElementById('btnArchive');
 const todaySection = document.getElementById('todaySection');
 const stockSection = document.getElementById('stockSection');
@@ -51,10 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setActiveNav('stock');
   });
 
-  btnAssistant?.addEventListener('click', () => {
-    setActiveNav('assistant');
-  });
-
   btnArchive.addEventListener('click', () => {
     setActiveNav('archive');
     loadArchive();
@@ -78,7 +74,6 @@ function initMobileViewportGuards() {
 function setActiveNav(nav) {
   btnLatest.classList.remove('active');
   btnStock.classList.remove('active');
-  btnAssistant?.classList.remove('active');
   btnArchive.classList.remove('active');
   todaySection.style.display = 'none';
   stockSection.style.display = 'none';
@@ -94,7 +89,6 @@ function setActiveNav(nav) {
     btnStock.classList.add('active');
     stockSection.style.display = 'block';
   } else if (nav === 'assistant') {
-    btnAssistant?.classList.add('active');
     if (assistantSection) assistantSection.style.display = 'block';
   } else if (nav === 'archive') {
     btnArchive.classList.add('active');
@@ -215,6 +209,11 @@ function initFloatingAssistant() {
   const full = document.getElementById('btnAssistantFull');
   if (!aiFloatingWidget || !aiFloatTrigger) return;
 
+  scheduleFloatingAssistantIdle();
+  ['pointerdown', 'touchstart', 'mouseenter', 'focusin'].forEach(eventName => {
+    aiFloatingWidget.addEventListener(eventName, revealFloatingAssistant, { passive: true });
+  });
+
   aiFloatTrigger.addEventListener('click', event => {
     if (aiFloatTrigger.dataset.dragged === '1') {
       aiFloatTrigger.dataset.dragged = '0';
@@ -241,6 +240,7 @@ function initFloatingAssistant() {
 
 function openFloatingAssistant() {
   if (!aiFloatingWidget || !aiFloatPanel) return;
+  revealFloatingAssistant();
   aiFloatingWidget.classList.remove('collapsed');
   aiFloatingWidget.classList.add('open');
   aiFloatPanel.setAttribute('aria-hidden', 'false');
@@ -253,6 +253,7 @@ function closeFloatingAssistant() {
   aiFloatingWidget.classList.add('collapsed');
   aiFloatingWidget.classList.remove('open');
   aiFloatPanel.setAttribute('aria-hidden', 'true');
+  scheduleFloatingAssistantIdle();
 }
 
 function resetFloatingAssistantPosition() {
@@ -274,6 +275,7 @@ function initFloatingAssistantDrag() {
 
   aiFloatTrigger.addEventListener('pointerdown', event => {
     if (aiFloatingWidget.classList.contains('open')) return;
+    aiFloatingWidget.classList.add('dragging');
     dragging = true;
     moved = false;
     const rect = aiFloatingWidget.getBoundingClientRect();
@@ -297,11 +299,13 @@ function initFloatingAssistantDrag() {
     aiFloatingWidget.style.top = nextTop + 'px';
     aiFloatingWidget.style.right = 'auto';
     aiFloatingWidget.style.bottom = 'auto';
+    aiFloatingWidget.classList.remove('edge-left', 'edge-right');
   });
 
   aiFloatTrigger.addEventListener('pointerup', event => {
     if (!dragging) return;
     dragging = false;
+    aiFloatingWidget.classList.remove('dragging');
     aiFloatTrigger.releasePointerCapture(event.pointerId);
     aiFloatTrigger.dataset.dragged = moved ? '1' : '0';
     if (moved) snapFloatingAssistantToEdge();
@@ -316,6 +320,28 @@ function snapFloatingAssistantToEdge() {
   aiFloatingWidget.style.right = snapLeft ? 'auto' : '8px';
   aiFloatingWidget.style.top = Math.max(80, Math.min(window.innerHeight - rect.height - 92, rect.top)) + 'px';
   aiFloatingWidget.style.bottom = 'auto';
+  aiFloatingWidget.classList.toggle('edge-left', snapLeft);
+  aiFloatingWidget.classList.toggle('edge-right', !snapLeft);
+  scheduleFloatingAssistantIdle();
+}
+
+function revealFloatingAssistant() {
+  if (!aiFloatingWidget) return;
+  aiFloatingWidget.classList.remove('idle');
+  aiFloatingWidget.classList.add('awake');
+  setTimeout(() => aiFloatingWidget?.classList.remove('awake'), 80);
+  scheduleFloatingAssistantIdle();
+}
+
+function scheduleFloatingAssistantIdle() {
+  if (!aiFloatingWidget) return;
+  clearTimeout(aiFloatIdleTimer);
+  if (aiFloatingWidget.classList.contains('open')) return;
+  aiFloatIdleTimer = setTimeout(() => {
+    if (!aiFloatingWidget.classList.contains('open')) {
+      aiFloatingWidget.classList.add('idle');
+    }
+  }, 5000);
 }
 
 function renderAssistantMessages(isLoading) {
@@ -683,7 +709,7 @@ function renderStockSnapshot(stock, compact) {
   const source = stock.snapshot_source || stock.quote_source || '生成时快照';
 
   if (!hasSnapshot) {
-    return '<div class="stock-snapshot muted"><span>生成时行情</span><strong>未记录</strong><small>历史日报不自动刷新现价</small></div>';
+    return '';
   }
 
   return '<div class="stock-snapshot' + (compact ? ' compact' : '') + '">'
@@ -2746,7 +2772,7 @@ function renderFrozenStockAnalysisList(stocks) {
     <div class="section-header">
       <h2>关注标的报告快照</h2>
     </div>
-    <p class="subtle-note">这里固定展示报告生成时的关注标的状态。历史日报不会自动刷新现价；需要看当前行情时，进入个股分析页。</p>
+    <p class="subtle-note">这里固定展示报告生成时的关注标的状态。旧报告若未保存快照则不展示行情字段；需要看当前行情时，进入个股分析页。</p>
     <div class="stock-analysis-list">
   `;
 

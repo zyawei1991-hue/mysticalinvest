@@ -6144,13 +6144,44 @@ body {
   right: 8px;
   bottom: calc(92px + env(safe-area-inset-bottom));
   z-index: 1200;
+  transition: transform 0.24s ease, opacity 0.24s ease;
+}
+
+@keyframes aiFloatIdleRight {
+  to {
+    transform: translateX(34px);
+    opacity: 0.48;
+  }
+}
+
+@keyframes aiFloatIdleLeft {
+  to {
+    transform: translateX(-34px);
+    opacity: 0.48;
+  }
+}
+
+.ai-floating-widget.collapsed.edge-right {
+  animation: aiFloatIdleRight 0.24s ease 5s forwards;
+}
+
+.ai-floating-widget.collapsed.edge-left {
+  animation: aiFloatIdleLeft 0.24s ease 5s forwards;
+}
+
+.ai-floating-widget.open,
+.ai-floating-widget.dragging,
+.ai-floating-widget.awake {
+  animation: none;
+  transform: none;
+  opacity: 1;
 }
 
 .ai-float-trigger {
   width: 58px;
   height: 58px;
   border: 0;
-  border-radius: 18px 0 0 18px;
+  border-radius: 999px;
   background: #111827;
   color: #fff;
   font-weight: 900;
@@ -6159,6 +6190,7 @@ body {
   box-shadow: 0 14px 30px rgba(15, 23, 42, 0.26);
   opacity: 0.74;
   touch-action: none;
+  transition: opacity 0.24s ease, transform 0.24s ease;
 }
 
 .ai-float-trigger:active,
@@ -6169,6 +6201,20 @@ body {
 
 .ai-floating-widget.open .ai-float-trigger {
   display: none;
+}
+
+.ai-floating-widget.idle.edge-right {
+  transform: translateX(34px);
+  opacity: 0.48;
+}
+
+.ai-floating-widget.idle.edge-left {
+  transform: translateX(-34px);
+  opacity: 0.48;
+}
+
+.ai-floating-widget.idle .ai-float-trigger {
+  opacity: 0.72;
 }
 
 .ai-float-panel {
@@ -6316,6 +6362,13 @@ body.assistant-fullscreen-active .ai-floating-widget {
   display: block;
 }
 
+.stock-snapshot-note {
+  margin: 8px 0;
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .stock-snapshot-card .analysis-content {
   padding-top: 8px;
 }
@@ -6327,6 +6380,16 @@ body.assistant-fullscreen-active .ai-floating-widget {
 @media (max-width: 768px) {
   body.assistant-fullscreen-active {
     padding-bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+
+  .main-nav {
+    justify-content: space-between;
+  }
+
+  .nav-btn {
+    flex: 0 0 calc((100vw - 32px) / 3) !important;
+    width: calc((100vw - 32px) / 3) !important;
+    max-width: calc((100vw - 32px) / 3) !important;
   }
 
   .assistant-section {

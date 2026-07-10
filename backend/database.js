@@ -45,7 +45,11 @@ function initDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       report_id INTEGER NOT NULL,
       name TEXT NOT NULL, code TEXT,
-      alert_level TEXT, suggestion TEXT, reason TEXT
+      alert_level TEXT, suggestion TEXT, reason TEXT,
+      snapshot_price REAL,
+      snapshot_change_percent REAL,
+      snapshot_as_of TEXT,
+      snapshot_source TEXT
     )`,
     `CREATE TABLE IF NOT EXISTS analysis (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -316,6 +320,10 @@ function initDatabase() {
     'ALTER TABLE ia_daily_bars ADD COLUMN circ_mv REAL',
     'ALTER TABLE watchlist ADD COLUMN alert_level TEXT',
     'ALTER TABLE watchlist ADD COLUMN created_at DATETIME',
+    'ALTER TABLE stocks ADD COLUMN snapshot_price REAL',
+    'ALTER TABLE stocks ADD COLUMN snapshot_change_percent REAL',
+    'ALTER TABLE stocks ADD COLUMN snapshot_as_of TEXT',
+    'ALTER TABLE stocks ADD COLUMN snapshot_source TEXT',
     "UPDATE watchlist SET created_at = COALESCE(created_at, added_at, datetime('now'))"
   ];
   for (const sql of migrations) {

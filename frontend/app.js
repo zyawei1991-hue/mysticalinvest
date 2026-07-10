@@ -1,4 +1,4 @@
-
+﻿
 // 自动检测路径基础（支持 /daily/ 和 / 两种部署）
 const API_BASE = (function() {
   const parts = window.location.pathname.replace(/\/$/, '').split('/');
@@ -26,6 +26,9 @@ const reportContent = document.getElementById('reportContent');
 const archiveList = document.getElementById('archiveList');
 const pagination = document.getElementById('pagination');
 const totalReports = document.getElementById('totalReports');
+const aiFloatingWidget = document.getElementById('aiFloatingWidget');
+const aiFloatTrigger = document.getElementById('aiFloatTrigger');
+const aiFloatPanel = document.getElementById('aiFloatPanel');
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -37,6 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
   loadLatest();
   initStockAnalysis();
   initAssistant();
+  initFloatingAssistant();
+  initMobileViewportGuards();
 
   btnLatest.addEventListener('click', () => {
     setActiveNav('latest');
@@ -57,6 +62,19 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // 设置活跃导航
+function initMobileViewportGuards() {
+  document.addEventListener('gesturestart', event => event.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', event => {
+    if (event.touches && event.touches.length > 1) event.preventDefault();
+  }, { passive: false });
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', event => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) event.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+}
+
 function setActiveNav(nav) {
   btnLatest.classList.remove('active');
   btnStock.classList.remove('active');
@@ -66,6 +84,8 @@ function setActiveNav(nav) {
   stockSection.style.display = 'none';
   if (assistantSection) assistantSection.style.display = 'none';
   archiveSection.style.display = 'none';
+  document.body.classList.toggle('assistant-fullscreen-active', nav === 'assistant');
+  if (nav === 'assistant') closeFloatingAssistant();
 
   if (nav === 'latest') {
     btnLatest.classList.add('active');
@@ -175,20 +195,135 @@ function initStockAnalysis() {
 function initAssistant() {
   const input = document.getElementById('assistantInput');
   const send = document.getElementById('btnAssistantSend');
-  if (!input || !send) return;
 
-  send.addEventListener('click', sendAssistantMessage);
-  input.addEventListener('keydown', event => {
+  if (send) send.addEventListener('click', () => sendAssistantMessage('full'));
+  if (input) {
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendAssistantMessage('full');
+      }
+    });
+  }
+  renderAssistantMessages(false);
+}
+
+function initFloatingAssistant() {
+  const input = document.getElementById('assistantFloatingInput');
+  const send = document.getElementById('btnAssistantFloatingSend');
+  const minimize = document.getElementById('btnAssistantMinimize');
+  const full = document.getElementById('btnAssistantFull');
+  if (!aiFloatingWidget || !aiFloatTrigger) return;
+
+  aiFloatTrigger.addEventListener('click', event => {
+    if (aiFloatTrigger.dataset.dragged === '1') {
+      aiFloatTrigger.dataset.dragged = '0';
+      return;
+    }
+    openFloatingAssistant();
+  });
+  minimize?.addEventListener('click', closeFloatingAssistant);
+  full?.addEventListener('click', () => {
+    closeFloatingAssistant();
+    setActiveNav('assistant');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  send?.addEventListener('click', () => sendAssistantMessage('floating'));
+  input?.addEventListener('keydown', event => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      sendAssistantMessage();
+      sendAssistantMessage('floating');
     }
+  });
+  initFloatingAssistantDrag();
+  renderAssistantMessages(false);
+}
+
+function openFloatingAssistant() {
+  if (!aiFloatingWidget || !aiFloatPanel) return;
+  aiFloatingWidget.classList.remove('collapsed');
+  aiFloatingWidget.classList.add('open');
+  aiFloatPanel.setAttribute('aria-hidden', 'false');
+  renderAssistantMessages(false);
+  setTimeout(() => document.getElementById('assistantFloatingInput')?.focus(), 50);
+}
+
+function closeFloatingAssistant() {
+  if (!aiFloatingWidget || !aiFloatPanel) return;
+  aiFloatingWidget.classList.add('collapsed');
+  aiFloatingWidget.classList.remove('open');
+  aiFloatPanel.setAttribute('aria-hidden', 'true');
+}
+
+function resetFloatingAssistantPosition() {
+  if (!aiFloatingWidget) return;
+  aiFloatingWidget.style.left = '';
+  aiFloatingWidget.style.top = '';
+  aiFloatingWidget.style.right = '';
+  aiFloatingWidget.style.bottom = '';
+}
+
+function initFloatingAssistantDrag() {
+  if (!aiFloatingWidget || !aiFloatTrigger || !window.PointerEvent) return;
+  let dragging = false;
+  let moved = false;
+  let startX = 0;
+  let startY = 0;
+  let startLeft = 0;
+  let startTop = 0;
+
+  aiFloatTrigger.addEventListener('pointerdown', event => {
+    if (aiFloatingWidget.classList.contains('open')) return;
+    dragging = true;
+    moved = false;
+    const rect = aiFloatingWidget.getBoundingClientRect();
+    startX = event.clientX;
+    startY = event.clientY;
+    startLeft = rect.left;
+    startTop = rect.top;
+    aiFloatTrigger.setPointerCapture(event.pointerId);
+  });
+
+  aiFloatTrigger.addEventListener('pointermove', event => {
+    if (!dragging) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (Math.abs(dx) + Math.abs(dy) > 8) moved = true;
+    const width = aiFloatingWidget.offsetWidth || 58;
+    const height = aiFloatingWidget.offsetHeight || 58;
+    const nextLeft = Math.max(8, Math.min(window.innerWidth - width - 8, startLeft + dx));
+    const nextTop = Math.max(80, Math.min(window.innerHeight - height - 92, startTop + dy));
+    aiFloatingWidget.style.left = nextLeft + 'px';
+    aiFloatingWidget.style.top = nextTop + 'px';
+    aiFloatingWidget.style.right = 'auto';
+    aiFloatingWidget.style.bottom = 'auto';
+  });
+
+  aiFloatTrigger.addEventListener('pointerup', event => {
+    if (!dragging) return;
+    dragging = false;
+    aiFloatTrigger.releasePointerCapture(event.pointerId);
+    aiFloatTrigger.dataset.dragged = moved ? '1' : '0';
+    if (moved) snapFloatingAssistantToEdge();
   });
 }
 
+function snapFloatingAssistantToEdge() {
+  if (!aiFloatingWidget) return;
+  const rect = aiFloatingWidget.getBoundingClientRect();
+  const snapLeft = rect.left + rect.width / 2 < window.innerWidth / 2;
+  aiFloatingWidget.style.left = snapLeft ? '8px' : 'auto';
+  aiFloatingWidget.style.right = snapLeft ? 'auto' : '8px';
+  aiFloatingWidget.style.top = Math.max(80, Math.min(window.innerHeight - rect.height - 92, rect.top)) + 'px';
+  aiFloatingWidget.style.bottom = 'auto';
+}
+
 function renderAssistantMessages(isLoading) {
-  const container = document.getElementById('assistantMessages');
-  if (!container) return;
+  const containers = [
+    document.getElementById('assistantMessages'),
+    document.getElementById('assistantFloatingMessages')
+  ].filter(Boolean);
+  if (!containers.length) return;
   let html = '';
   assistantMessages.forEach(item => {
     html += `<div class="assistant-message ${item.role === 'assistant' ? 'assistant' : 'user'}">
@@ -205,19 +340,24 @@ function renderAssistantMessages(isLoading) {
       <div class="assistant-bubble">可以问我日报结论、行业五行逻辑、关注标的复盘、知识库规则和项目用法。</div>
     </div>`;
   }
-  container.innerHTML = html;
-  container.scrollTop = container.scrollHeight;
+  containers.forEach(container => {
+    container.innerHTML = html;
+    container.scrollTop = container.scrollHeight;
+  });
 }
 
-async function sendAssistantMessage() {
-  const input = document.getElementById('assistantInput');
-  const send = document.getElementById('btnAssistantSend');
+async function sendAssistantMessage(source) {
+  const input = document.getElementById(source === 'floating' ? 'assistantFloatingInput' : 'assistantInput');
+  const sends = [
+    document.getElementById('btnAssistantSend'),
+    document.getElementById('btnAssistantFloatingSend')
+  ].filter(Boolean);
   const message = input ? input.value.trim() : '';
   if (!message) return;
 
   assistantMessages.push({ role: 'user', content: message });
   if (input) input.value = '';
-  if (send) send.disabled = true;
+  sends.forEach(button => { button.disabled = true; });
   renderAssistantMessages(true);
 
   try {
@@ -238,7 +378,7 @@ async function sendAssistantMessage() {
   } catch (err) {
     assistantMessages.push({ role: 'assistant', content: 'AI助手暂不可用：' + err.message });
   } finally {
-    if (send) send.disabled = false;
+    sends.forEach(button => { button.disabled = false; });
     renderAssistantMessages(false);
   }
 }
@@ -529,6 +669,40 @@ function renderRiskSection(data) {
   `;
 }
 
+function toReportNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function renderStockSnapshot(stock, compact) {
+  const price = toReportNumber(stock.snapshot_price ?? stock.last);
+  const change = toReportNumber(stock.snapshot_change_percent ?? stock.changePercent);
+  const hasSnapshot = price !== null || change !== null;
+  const changeClass = change === null ? 'neutral' : (change >= 0 ? 'positive' : 'negative');
+  const asOf = stock.snapshot_as_of || stock.quote_as_of || '';
+  const source = stock.snapshot_source || stock.quote_source || '生成时快照';
+
+  if (!hasSnapshot) {
+    return '<div class="stock-snapshot muted"><span>生成时行情</span><strong>未记录</strong><small>历史日报不自动刷新现价</small></div>';
+  }
+
+  return '<div class="stock-snapshot' + (compact ? ' compact' : '') + '">'
+    + '<div><span>生成时价格</span><strong>' + escapeHtml(price === null ? '-' : price.toFixed(2)) + '</strong></div>'
+    + '<div><span>生成时涨跌</span><strong class="' + changeClass + '">' + escapeHtml(change === null ? '-' : formatMetricValue(change, '%')) + '</strong></div>'
+    + '<small>' + escapeHtml(source) + (asOf ? ' · ' + escapeHtml(String(asOf).replace('T', ' ').slice(0, 19)) : '') + '</small>'
+    + '</div>';
+}
+
+function openStockAnalysisFromReport(encodedCode) {
+  const code = decodeURIComponent(String(encodedCode || '')).trim();
+  if (!code) return;
+  setActiveNav('stock');
+  const input = document.getElementById('stockInput');
+  if (input) input.value = code;
+  analyzeStock(code);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 function renderReport(data) {
   reportContent.dataset.view = currentPresentationMode;
 
@@ -600,7 +774,6 @@ function renderReport(data) {
       const alertClass = stock.alert_level === 'red' ? 'alert-red' :
                         stock.alert_level === 'yellow' ? 'alert-yellow' :
                         stock.alert_level === 'green' ? 'alert-green' : '';
-      // 实时价格占位符（通过 loadStockRealtimePrices 异步填充）
       html += `
         <div class="stock-card ${alertClass}" data-stock-id="${stock.id}" data-stock-name="${encodeURIComponent(stock.name)}" data-stock-code="${stock.code || ''}" data-stock-alert="${stock.alert_level || ''}" data-stock-suggestion="${stock.suggestion || ''}" data-stock-reason="${encodeURIComponent(stock.reason || '')}">
           <div class="stock-actions">
@@ -611,10 +784,7 @@ function renderReport(data) {
             <span class="stock-name">${stock.name} <span class="stock-code">${stock.code || ''}</span></span>
             <span class="stock-suggestion suggestion-${(stock.suggestion || '').replace(/\s/g, '') || 'hold'}">${stock.suggestion || '观望'}</span>
           </div>
-          <div class="stock-realtime" id="rt-${stock.code || stock.name}">
-            <span class="rt-price">-</span>
-            <span class="rt-change">-</span>
-          </div>
+          ${renderStockSnapshot(stock, true)}
           ${stock.reason ? `<div class="stock-reason">${stock.reason}</div>` : ''}
         </div>
       `;
@@ -627,7 +797,7 @@ function renderReport(data) {
   // 关注标的四维分析（新增！）
   if (data.stocks && data.stocks.length > 0) {
     html += '<details class="stock-detail-drawer"><summary>展开关注标的走势和四维分析</summary>';
-    html += renderStockAnalysisList(data.stocks);
+    html += renderFrozenStockAnalysisList(data.stocks);
     html += '</details>';
   }
 
@@ -670,10 +840,6 @@ function renderReport(data) {
 
   reportContent.innerHTML = html;
   setTimeout(function() { loadReportTrendChart(currentReportType); }, 50);
-  // 异步加载关注标的实时价格
-  if (data.stocks && data.stocks.length > 0) {
-    setTimeout(function() { loadStockRealtimePrices(data.stocks); }, 50);
-  }
 }
 
 function parseStrategyText(text) {
@@ -1140,7 +1306,9 @@ function getUniversalVolumeState(data) {
   return {
     tone: toneMap[volume.level] || 'neutral',
     label: volume.title,
-    value: Number.isFinite(volume.turnoverRate) ? formatMetricValue(volume.turnoverRate, '%') : '量能数据不足',
+    value: Number.isFinite(volume.turnoverRate)
+      ? '全市场换手率 ' + Number(volume.turnoverRate).toFixed(2) + '%'
+      : '量能数据不足',
     note: volume.action,
     raw: volume
   };
@@ -1596,7 +1764,7 @@ function renderVolumeAnalysisSection(data) {
   html += '<div class="section-header"><h2>量能分析</h2><span>看成交是否支持当前策略</span></div>';
   html += '<div class="volume-summary"><strong>' + escapeHtml(analysis.title) + '</strong><p>' + escapeHtml(analysis.summary) + '</p><small>' + escapeHtml(analysis.action) + '</small></div>';
   html += '<div class="volume-metrics">';
-  html += '<div><span>全市场换手</span><strong>' + escapeHtml(formatMetricValue(analysis.turnoverRate, '%')) + '</strong><small>成交活跃度</small></div>';
+  html += '<div><span>全市场换手率</span><strong>' + escapeHtml(formatUnsignedPercent(analysis.turnoverRate)) + '</strong><small>量能活跃度，不是涨跌幅</small></div>';
   html += '<div><span>宽度差</span><strong>' + escapeHtml(formatMetricValue(analysis.breadthBalance, '%')) + '</strong><small>上涨家数 - 下跌家数</small></div>';
   html += '<div><span>主力净流入</span><strong>' + escapeHtml(formatYi(analysis.mainFlow)) + '</strong><small>承接强弱</small></div>';
   html += '<div><span>ETF净流入</span><strong>' + escapeHtml(formatYi(analysis.etfFlow)) + '</strong><small>指数/行业配置意愿</small></div>';
@@ -1605,7 +1773,7 @@ function renderVolumeAnalysisSection(data) {
     html += '<details class="volume-detail"><summary>查看高换手样本</summary>';
     html += '<table class="compact-data-table"><thead><tr><th>标的</th><th>涨跌幅</th><th>换手率</th><th>成交额</th></tr></thead><tbody>';
     analysis.active.slice(0, 5).forEach(function(item) {
-      html += '<tr><td>' + escapeHtml(item.name || item.code || '-') + '</td><td>' + escapeHtml(formatMetricValue(item.changePercent, '%')) + '</td><td>' + escapeHtml(formatMetricValue(item.turnoverRate, '%')) + '</td><td>' + escapeHtml(formatYi(item.amount)) + '</td></tr>';
+      html += '<tr><td>' + escapeHtml(item.name || item.code || '-') + '</td><td>' + escapeHtml(formatMetricValue(item.changePercent, '%')) + '</td><td>' + escapeHtml(formatUnsignedPercent(item.turnoverRate)) + '</td><td>' + escapeHtml(formatYi(item.amount)) + '</td></tr>';
     });
     html += '</tbody></table></details>';
   }
@@ -1780,6 +1948,11 @@ function formatMetricValue(value, unit) {
   return sign + n.toFixed(unit === '亿' ? 1 : 2) + unit;
 }
 
+function formatUnsignedPercent(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '-';
+  return n.toFixed(2) + '%';
+}
 function formatMetricPct(value, digits) {
   const n = Number(value);
   if (!Number.isFinite(n)) return '-';
@@ -2568,6 +2741,41 @@ function renderStockAnalysisList(stocks) {
 }
 
 // 异步加载单只股票四维分析
+function renderFrozenStockAnalysisList(stocks) {
+  let html = `<div class="stock-analysis-section">
+    <div class="section-header">
+      <h2>关注标的报告快照</h2>
+    </div>
+    <p class="subtle-note">这里固定展示报告生成时的关注标的状态。历史日报不会自动刷新现价；需要看当前行情时，进入个股分析页。</p>
+    <div class="stock-analysis-list">
+  `;
+
+  stocks.forEach(function(stock) {
+    const query = stock.code || stock.name;
+    if (!query) return;
+    const alertClass = stock.alert_level === 'red' ? 'alert-red' :
+                      stock.alert_level === 'yellow' ? 'alert-yellow' :
+                      stock.alert_level === 'green' ? 'alert-green' : '';
+    const encodedQuery = encodeURIComponent(query);
+    html += `<details class="stock-analysis-card stock-snapshot-card ${alertClass}">
+      <summary class="analysis-header">
+        <span class="stock-name">${escapeHtml(stock.name || query)}</span>
+        <span class="stock-code">${escapeHtml(stock.code || '')}</span>
+        <span class="load-indicator">报告快照</span>
+      </summary>
+      <div class="analysis-content">
+        ${renderStockSnapshot(stock)}
+        ${stock.suggestion ? `<p><strong>报告建议：</strong>${escapeHtml(stock.suggestion)}</p>` : ''}
+        ${stock.reason ? `<p><strong>入选原因：</strong>${escapeHtml(stock.reason)}</p>` : ''}
+        <button class="btn-text stock-live-link" type="button" onclick="openStockAnalysisFromReport('${encodedQuery}')">查看当前个股分析</button>
+      </div>
+    </details>`;
+  });
+
+  html += `</div></div>`;
+  return html;
+}
+
 async function loadStockAnalysis(code, name) {
   const domId = stockDomId(code);
   const card = document.getElementById('analysis-' + domId);
@@ -2727,6 +2935,7 @@ async function fetchRealtimePrice(code, name, rtEl) {
 window.loadStockRealtimePrices = loadStockRealtimePrices;
 window.fetchRealtimePrice = fetchRealtimePrice;
 window.refreshStockAnalysis = refreshStockAnalysis;
+window.openStockAnalysisFromReport = openStockAnalysisFromReport;
 
 
 async function loadArchive(page = 1) {

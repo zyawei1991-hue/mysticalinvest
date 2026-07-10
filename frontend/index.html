@@ -2,9 +2,9 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>五行投资日报</title>
-  <link rel="stylesheet" href="style.css?v=48">
+  <link rel="stylesheet" href="style.css?v=50">
 </head>
 <body>
   <div class="container">
@@ -85,6 +85,27 @@
     </footer>
   </div>
 
-  <script src="app.js?v=48"></script>
+  <div id="aiFloatingWidget" class="ai-floating-widget collapsed" aria-live="polite">
+    <button id="aiFloatTrigger" class="ai-float-trigger" type="button" aria-label="打开AI助手">AI</button>
+    <section id="aiFloatPanel" class="ai-float-panel" aria-hidden="true">
+      <div class="ai-float-head">
+        <div>
+          <strong>AI助手</strong>
+          <span>基于当前日报和知识库回答</span>
+        </div>
+        <div class="ai-float-actions">
+          <button id="btnAssistantFull" type="button">全屏</button>
+          <button id="btnAssistantMinimize" type="button" aria-label="收起AI助手">×</button>
+        </div>
+      </div>
+      <div id="assistantFloatingMessages" class="assistant-messages assistant-floating-messages"></div>
+      <div class="assistant-input-bar assistant-floating-input-bar">
+        <textarea id="assistantFloatingInput" rows="2" placeholder="问日报、行业、仓位或标的"></textarea>
+        <button id="btnAssistantFloatingSend" class="btn-primary" type="button">发送</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js?v=50"></script>
 </body>
 </html>

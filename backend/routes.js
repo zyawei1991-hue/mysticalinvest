@@ -52,6 +52,96 @@ async function resolveAndCacheStockIndustryFromInput(name, code) {
   }
 }
 
+function normalizeReportQuoteCode(code) {
+  const raw = String(code || '').trim();
+  if (!raw) return '';
+  const lower = raw.toLowerCase();
+  if (/^(sh|sz)\d{6}$/.test(lower)) return lower;
+  const digits = raw.replace(/\D/g, '');
+  if (!/^\d{6}$/.test(digits)) return '';
+  return (digits.startsWith('5') || digits.startsWith('6') ? 'sh' : 'sz') + digits;
+}
+
+function stripMarketPrefix(code) {
+  return String(code || '').replace(/^(sh|sz)/i, '');
+}
+
+async function fetchReportQuoteSnapshots(items) {
+  const codes = [];
+  (items || []).forEach(item => {
+    const quoteCode = normalizeReportQuoteCode(item && item.code);
+    if (quoteCode) codes.push(quoteCode);
+  });
+  const uniqueCodes = Array.from(new Set(codes));
+  if (!uniqueCodes.length) return {};
+  try {
+    const quotes = await fetchQuote(uniqueCodes);
+    const asOf = new Date().toISOString();
+    const snapshots = {};
+    uniqueCodes.forEach(code => {
+      const quote = quotes[code];
+      if (!quote) return;
+      snapshots[code] = {
+        price: Number.isFinite(Number(quote.last)) ? Number(quote.last) : null,
+        changePercent: Number.isFinite(Number(quote.changePercent)) ? Number(quote.changePercent) : null,
+        asOf,
+        source: 'Tencent quote API'
+      };
+    });
+    return snapshots;
+  } catch (error) {
+    console.warn('生成日报标的行情快照失败:', error.message);
+    return {};
+  }
+}
+
+async function freezeReportStockSnapshots(stocks, industriesJson) {
+  const normalizedStocks = Array.isArray(stocks) ? stocks.map(item => ({ ...item })) : [];
+  const industries = parseJsonMaybe(industriesJson);
+  const normalizedIndustries = Array.isArray(industries)
+    ? industries.map(industry => ({
+        ...industry,
+        stocks: Array.isArray(industry.stocks) ? industry.stocks.map(stock => ({ ...stock })) : industry.stocks
+      }))
+    : industries;
+
+  const quoteItems = normalizedStocks.slice();
+  if (Array.isArray(normalizedIndustries)) {
+    normalizedIndustries.forEach(industry => {
+      if (Array.isArray(industry.stocks)) quoteItems.push(...industry.stocks);
+    });
+  }
+  const snapshots = await fetchReportQuoteSnapshots(quoteItems);
+  const applySnapshot = stock => {
+    if (!stock || !stock.code) return stock;
+    const quoteCode = normalizeReportQuoteCode(stock.code);
+    const snapshot = snapshots[quoteCode];
+    if (!snapshot) return stock;
+    stock.snapshot_price = stock.snapshot_price ?? snapshot.price;
+    stock.snapshot_change_percent = stock.snapshot_change_percent ?? snapshot.changePercent;
+    stock.snapshot_as_of = stock.snapshot_as_of || snapshot.asOf;
+    stock.snapshot_source = stock.snapshot_source || snapshot.source;
+    if (stock.last === undefined || stock.last === null) stock.last = snapshot.price;
+    if (stock.changePercent === undefined || stock.changePercent === null) stock.changePercent = snapshot.changePercent;
+    stock.quote_as_of = stock.quote_as_of || snapshot.asOf;
+    stock.quote_source = stock.quote_source || snapshot.source;
+    stock.code = stripMarketPrefix(stock.code);
+    return stock;
+  };
+
+  normalizedStocks.forEach(applySnapshot);
+  if (Array.isArray(normalizedIndustries)) {
+    normalizedIndustries.forEach(industry => {
+      if (Array.isArray(industry.stocks)) industry.stocks.forEach(applySnapshot);
+    });
+  }
+
+  return {
+    stocks: normalizedStocks,
+    industriesJson: normalizedIndustries ? stringifyJson(normalizedIndustries) : industriesJson
+  };
+}
+
 function toFiniteNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
@@ -482,7 +572,7 @@ router.get('/backtest/institutional-status', (req, res) => {
 });
 
 // 创建/更新日报
-router.post('/reports', (req, res) => {
+router.post('/reports', async (req, res) => {
   const {
     report_date,
     report_type,
@@ -517,6 +607,10 @@ router.post('/reports', (req, res) => {
     }
   }
 
+  const frozenSnapshot = await freezeReportStockSnapshots(stocks, industries_json);
+  const stocksForSave = frozenSnapshot.stocks;
+  const industriesJsonForSave = frozenSnapshot.industriesJson || industries_json;
+
   const existing = get('SELECT id FROM reports WHERE report_date = ? AND report_type = ?', [report_date, type]);
   const globalIndexesJson = global_indexes_json || stringifyJson(global_indexes);
   const marketMomentumJson = market_momentum_json || stringifyJson(market_momentum);
@@ -547,7 +641,7 @@ router.post('/reports', (req, res) => {
     `, [hs300_value, hs300_change, sh_value, sh_change,
         sz_value, sz_change, cy_value, cy_change,
         total_profit_loss, total_profit_loss_percent, holding_count,
-        bazi_json, industries_json, alerts_json,
+        bazi_json, industriesJsonForSave, alerts_json,
         globalIndexesJson, marketMomentumJson, card_summary,
         operationAdviceJson, keyVariablesJson, marketBreadthJson, limitStocksJson, annualCorrectionJson,
         bazi_interpretation, risk_warning, verification, report_date, type]);
@@ -564,7 +658,7 @@ router.post('/reports', (req, res) => {
     `, [report_date, type, hs300_value, hs300_change, sh_value, sh_change,
         sz_value, sz_change, cy_value, cy_change,
         total_profit_loss, total_profit_loss_percent, holding_count,
-        bazi_json, industries_json, alerts_json,
+        bazi_json, industriesJsonForSave, alerts_json,
         globalIndexesJson, marketMomentumJson, card_summary,
         operationAdviceJson, keyVariablesJson, marketBreadthJson, limitStocksJson, annualCorrectionJson,
         bazi_interpretation, risk_warning, verification]);
@@ -573,10 +667,24 @@ router.post('/reports', (req, res) => {
 
   run('DELETE FROM stocks WHERE report_id = ?', [reportId]);
 
-  if (stocks && stocks.length > 0) {
-    for (const stock of stocks) {
-      run('INSERT INTO stocks (report_id, name, code, alert_level, suggestion, reason) VALUES (?, ?, ?, ?, ?, ?)',
-        [reportId, stock.name, stock.code, stock.alert_level, stock.suggestion, stock.reason]);
+  if (stocksForSave && stocksForSave.length > 0) {
+    for (const stock of stocksForSave) {
+      run(`INSERT INTO stocks (
+        report_id, name, code, alert_level, suggestion, reason,
+        snapshot_price, snapshot_change_percent, snapshot_as_of, snapshot_source
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          reportId,
+          stock.name,
+          stripMarketPrefix(stock.code),
+          stock.alert_level,
+          stock.suggestion,
+          stock.reason,
+          stock.snapshot_price ?? null,
+          stock.snapshot_change_percent ?? null,
+          stock.snapshot_as_of || null,
+          stock.snapshot_source || null
+        ]);
     }
   }
 
@@ -595,7 +703,7 @@ router.post('/reports', (req, res) => {
     sh_change,
     sz_change,
     cy_change,
-    industries_json,
+    industries_json: industriesJsonForSave,
     market_momentum_json: marketMomentumJson,
     operation_advice_json: operationAdviceJson,
     key_variables_json: keyVariablesJson,
@@ -680,8 +788,28 @@ router.post('/reports/:date/stocks', async (req, res) => {
   const resolved = await resolveAndCacheStockIndustryFromInput(finalName, finalCode);
   const savedName = resolved?.quote?.name || finalName;
   const savedCode = resolved?.quote?.code || finalCode;
-  run('INSERT INTO stocks (report_id, name, code, alert_level, suggestion, reason) VALUES (?, ?, ?, ?, ?, ?)',
-    [report.id, savedName, savedCode, alert_level || null, suggestion || '关注', reason || null]);
+  const snapshot = resolved?.quote ? {
+    price: Number.isFinite(Number(resolved.quote.last)) ? Number(resolved.quote.last) : null,
+    changePercent: Number.isFinite(Number(resolved.quote.changePercent)) ? Number(resolved.quote.changePercent) : null,
+    asOf: new Date().toISOString(),
+    source: 'Tencent quote API'
+  } : {};
+  run(`INSERT INTO stocks (
+    report_id, name, code, alert_level, suggestion, reason,
+    snapshot_price, snapshot_change_percent, snapshot_as_of, snapshot_source
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      report.id,
+      savedName,
+      stripMarketPrefix(savedCode),
+      alert_level || null,
+      suggestion || '关注',
+      reason || null,
+      snapshot.price ?? null,
+      snapshot.changePercent ?? null,
+      snapshot.asOf || null,
+      snapshot.source || null
+    ]);
   res.json({
     success: true,
     id: getLastInsertRowId(),
@@ -1073,34 +1201,7 @@ async function buildReportResponse(report, stocks, analysis) {
     response.prediction = analysis?.prediction || generatePrediction(response.bazi, hs300Change);
   }
 
-
-  // 为行业推荐标的注入实时行情
-  if (response.industries && response.industries.length > 0) {
-    try {
-      const stockCodes = [];
-      response.industries.forEach(ind => {
-        if (ind.stocks && ind.stocks.length > 0) {
-          ind.stocks.forEach(s => { const prefix = s.code.startsWith("5") || s.code.startsWith("6") ? "sh" : "sz"; stockCodes.push(prefix + s.code) });
-        }
-      });
-      if (stockCodes.length > 0) {
-        const quotes = await fetchQuote(stockCodes);
-        response.industries.forEach(ind => {
-          if (ind.stocks && ind.stocks.length > 0) {
-            ind.stocks.forEach(stock => {
-              const q = quotes[(stock.code.startsWith("5") || stock.code.startsWith("6") ? "sh" : "sz") + stock.code];
-              if (q) {
-                stock.last = q.last;
-                stock.changePercent = q.changePercent;
-              }
-            });
-          }
-        });
-      }
-    } catch (e) {
-      console.error('获取推荐标的行情失败:', e);
-    }
-  }
+  response.snapshot_policy = 'report_time_frozen';
   return response;
 }
 

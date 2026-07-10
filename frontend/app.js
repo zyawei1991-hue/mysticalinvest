@@ -16,6 +16,7 @@ let aiFloatIdleTimer = null;
 // DOM元素
 const btnLatest = document.getElementById('btnLatest');
 const btnStock = document.getElementById('btnStock');
+const btnAssistant = document.getElementById('btnAssistant');
 const btnArchive = document.getElementById('btnArchive');
 const todaySection = document.getElementById('todaySection');
 const stockSection = document.getElementById('stockSection');
@@ -51,6 +52,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setActiveNav('stock');
   });
 
+  btnAssistant?.addEventListener('click', () => {
+    setActiveNav('assistant');
+  });
+
   btnArchive.addEventListener('click', () => {
     setActiveNav('archive');
     loadArchive();
@@ -74,6 +79,7 @@ function initMobileViewportGuards() {
 function setActiveNav(nav) {
   btnLatest.classList.remove('active');
   btnStock.classList.remove('active');
+  btnAssistant?.classList.remove('active');
   btnArchive.classList.remove('active');
   todaySection.style.display = 'none';
   stockSection.style.display = 'none';
@@ -89,6 +95,7 @@ function setActiveNav(nav) {
     btnStock.classList.add('active');
     stockSection.style.display = 'block';
   } else if (nav === 'assistant') {
+    btnAssistant?.classList.add('active');
     if (assistantSection) assistantSection.style.display = 'block';
   } else if (nav === 'archive') {
     btnArchive.classList.add('active');
@@ -515,50 +522,85 @@ async function clearStockHistory() {
   }
 }
 
+function getShortAnalysisText(text, fallback) {
+  const raw = String(text || fallback || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return { brief: fallback || '暂无结论', full: '' };
+  if (raw.length <= 86) return { brief: raw, full: '' };
+  const punctuationIndex = raw.slice(0, 96).search(/[。！？；;]/);
+  const end = punctuationIndex >= 24 ? punctuationIndex + 1 : 86;
+  return { brief: raw.slice(0, end), full: raw };
+}
+
+function renderStockMetric(label, value, cls) {
+  return `<div class="stock-visual-metric ${cls || ''}">
+    <span>${escapeHtml(label)}</span>
+    <strong>${escapeHtml(value)}</strong>
+  </div>`;
+}
+
+function renderStockVisualDimension(type, title, text, fallback, extraHtml) {
+  const item = getShortAnalysisText(text, fallback);
+  return `<details class="stock-visual-dim ${type}" ${item.full ? '' : 'open'}>
+    <summary>
+      <span>${escapeHtml(title)}</span>
+      <strong>${escapeHtml(item.brief)}</strong>
+    </summary>
+    ${item.full ? `<p>${escapeHtml(item.full)}</p>` : ''}
+    ${extraHtml || ''}
+  </details>`;
+}
+
 // 渲染个股分析结果
 function renderStockAnalysis(data) {
   const stockResult = document.getElementById('stockResult');
   const analysis = data.analysis || {};
   const decision = analysis.decision || {};
   const badges = Array.isArray(analysis.badges) ? analysis.badges : [];
+  const change = Number(data.changePercent ?? data.change);
+  const priceText = Number.isFinite(Number(data.price)) ? Number(data.price).toFixed(2) : '-';
+  const changeText = Number.isFinite(change) ? (change >= 0 ? '+' : '') + change.toFixed(2) + '%' : '-';
+  const scoreText = Number.isFinite(Number(decision.score)) ? Number(decision.score).toFixed(0) : '-';
+  const industryText = data.industry || data.industry_name || '待识别';
+  const peText = Number.isFinite(Number(data.pe)) ? Number(data.pe).toFixed(1) : '-';
+  const pbText = Number.isFinite(Number(data.pb)) ? Number(data.pb).toFixed(2) : '-';
+  const decisionSummary = decision.summary || '行业先验、估值和盘面确认需要继续交叉验证。';
 
   let html = `
-    <div class="stock-header-info">
-      <h2>${escapeHtml(data.name || '-')} <span class="stock-code">${escapeHtml(data.code || '')}</span></h2>
-      <div class="stock-price">
-        <span class="price">${Number.isFinite(Number(data.price)) ? Number(data.price).toFixed(2) : '-'}</span>
-        <span class="change ${data.change >= 0 ? 'positive' : 'negative'}">${Number.isFinite(Number(data.change)) ? (data.change >= 0 ? '+' : '') + Number(data.change).toFixed(2) + '%' : '-'}</span>
+    <div class="stock-analysis-shell">
+      <div class="stock-hero-card ${escapeHtml(decision.level || 'watch')}">
+        <div>
+          <span class="stock-hero-kicker">个股四维复核</span>
+          <h2>${escapeHtml(data.name || '-')} <span class="stock-code">${escapeHtml(data.code || '')}</span></h2>
+        </div>
+        <div class="stock-price visual">
+          <span class="price">${escapeHtml(priceText)}</span>
+          <span class="change ${change >= 0 ? 'positive' : 'negative'}">${escapeHtml(changeText)}</span>
+        </div>
       </div>
-    </div>
 
-    <div class="stock-decision ${escapeHtml(decision.level || 'watch')}">
-      <div class="stock-decision-main">
-        <span>综合门控</span>
-        <strong>${escapeHtml(decision.label || '可跟踪验证')}</strong>
-        <small>${Number.isFinite(Number(decision.score)) ? '融合分 ' + Number(decision.score).toFixed(0) : ''}</small>
+      <div class="stock-decision stock-visual-decision ${escapeHtml(decision.level || 'watch')}">
+        <div class="stock-decision-main">
+          <span>综合门控</span>
+          <strong>${escapeHtml(decision.label || '可跟踪验证')}</strong>
+          <small>融合分 ${escapeHtml(scoreText)}</small>
+        </div>
+        <p>${escapeHtml(decisionSummary)}</p>
+        ${decision.action ? `<p class="stock-decision-action">${escapeHtml(decision.action)}</p>` : ''}
+        ${badges.length ? `<div class="stock-badges">${badges.map(item => `<span>${escapeHtml(item)}</span>`).join('')}</div>` : ''}
       </div>
-      <p>${escapeHtml(decision.summary || '行业先验、估值和盘面确认需要继续交叉验证。')}</p>
-      ${decision.action ? `<p class="stock-decision-action">${escapeHtml(decision.action)}</p>` : ''}
-      ${badges.length ? `<div class="stock-badges">${badges.map(item => `<span>${escapeHtml(item)}</span>`).join('')}</div>` : ''}
-    </div>
 
-    <div class="four-dimensions">
-      <div class="dimension-card mystic">
-        <h3>五行/行业适配</h3>
-        <div class="dimension-content">${escapeHtml(analysis.mystic || '行业五行映射待确认')}</div>
+      <div class="stock-visual-metrics">
+        ${renderStockMetric('行业', industryText)}
+        ${renderStockMetric('PE', peText)}
+        ${renderStockMetric('PB', pbText)}
+        ${renderStockMetric('涨跌幅', changeText, change >= 0 ? 'positive' : 'negative')}
       </div>
-      <div class="dimension-card fundamental">
-        <h3>价投/基本面</h3>
-        <div class="dimension-content">${escapeHtml(analysis.fundamental || '暂无基本面分析')}</div>
-        ${analysis.value_points ? `<div class="dimension-extra"><strong>价投买卖点</strong><span>${escapeHtml(analysis.value_points)}</span></div>` : ''}
-      </div>
-      <div class="dimension-card technical">
-        <h3>量价/趋势</h3>
-        <div class="dimension-content">${escapeHtml(analysis.technical || '暂无技术分析')}</div>
-      </div>
-      <div class="dimension-card flow">
-        <h3>资金/风险</h3>
-        <div class="dimension-content">${escapeHtml(analysis.flow || '暂无资金分析')}</div>
+
+      <div class="stock-visual-grid">
+        ${renderStockVisualDimension('mystic', '五行/行业', analysis.mystic, '行业五行映射待确认')}
+        ${renderStockVisualDimension('fundamental', '价投/基本面', analysis.fundamental, '暂无基本面分析', analysis.value_points ? `<div class="dimension-extra"><strong>买卖点</strong><span>${escapeHtml(analysis.value_points)}</span></div>` : '')}
+        ${renderStockVisualDimension('technical', '量价/趋势', analysis.technical, '暂无技术分析')}
+        ${renderStockVisualDimension('flow', '资金/风险', analysis.flow, '暂无资金分析')}
       </div>
     </div>
   `;
@@ -2770,9 +2812,9 @@ function renderStockAnalysisList(stocks) {
 function renderFrozenStockAnalysisList(stocks) {
   let html = `<div class="stock-analysis-section">
     <div class="section-header">
-      <h2>关注标的报告快照</h2>
+      <h2>关注标的报告快照与四维复核</h2>
     </div>
-    <p class="subtle-note">这里固定展示报告生成时的关注标的状态。旧报告若未保存快照则不展示行情字段；需要看当前行情时，进入个股分析页。</p>
+    <p class="subtle-note">报告建议和生成时行情保持冻结；展开单个标的后再读取当前四维复核，不覆盖历史日报。</p>
     <div class="stock-analysis-list">
   `;
 
@@ -2783,17 +2825,22 @@ function renderFrozenStockAnalysisList(stocks) {
                       stock.alert_level === 'yellow' ? 'alert-yellow' :
                       stock.alert_level === 'green' ? 'alert-green' : '';
     const encodedQuery = encodeURIComponent(query);
-    html += `<details class="stock-analysis-card stock-snapshot-card ${alertClass}">
+    const domId = stockDomId(query);
+    html += `<details class="stock-analysis-card stock-snapshot-card ${alertClass}" id="analysis-${domId}" data-stock-code="${escapeHtml(query)}" data-stock-name="${escapeHtml(stock.name || query)}" ontoggle="loadReportStockAnalysisOnOpen(this)">
       <summary class="analysis-header">
         <span class="stock-name">${escapeHtml(stock.name || query)}</span>
         <span class="stock-code">${escapeHtml(stock.code || '')}</span>
-        <span class="load-indicator">报告快照</span>
+        <span class="load-indicator" id="load-indicator-${domId}">展开复核</span>
       </summary>
-      <div class="analysis-content">
+      <div class="analysis-content report-snapshot-summary">
         ${renderStockSnapshot(stock)}
         ${stock.suggestion ? `<p><strong>报告建议：</strong>${escapeHtml(stock.suggestion)}</p>` : ''}
         ${stock.reason ? `<p><strong>入选原因：</strong>${escapeHtml(stock.reason)}</p>` : ''}
         <button class="btn-text stock-live-link" type="button" onclick="openStockAnalysisFromReport('${encodedQuery}')">查看当前个股分析</button>
+      </div>
+      <div class="analysis-loading" id="loading-${domId}" style="display:none">
+        <div class="spinner"></div>
+        <span>正在生成当前四维复核...</span>
       </div>
     </details>`;
   });
@@ -2802,12 +2849,23 @@ function renderFrozenStockAnalysisList(stocks) {
   return html;
 }
 
+function loadReportStockAnalysisOnOpen(details) {
+  if (!details || !details.open) return;
+  if (details.dataset.analysisLoaded === '1' || details.dataset.analysisLoading === '1') return;
+  const code = details.dataset.stockCode || '';
+  if (!code) return;
+  details.dataset.analysisLoading = '1';
+  loadStockAnalysis(code, details.dataset.stockName || code).finally(function() {
+    details.dataset.analysisLoading = '0';
+  });
+}
+
 async function loadStockAnalysis(code, name) {
   const domId = stockDomId(code);
   const card = document.getElementById('analysis-' + domId);
   const loading = document.getElementById('loading-' + domId);
   if (!card || !loading) return;
-  card.querySelectorAll('.analysis-content, .analysis-error-msg').forEach(function(node) { node.remove(); });
+  card.querySelectorAll('.analysis-current-content, .analysis-error-msg').forEach(function(node) { node.remove(); });
   const loadIndicator = document.getElementById('load-indicator-' + domId);
   if (loading) loading.style.display = '';
   if (loadIndicator) loadIndicator.style.display = '';
@@ -2819,7 +2877,7 @@ async function loadStockAnalysis(code, name) {
     const trend = await trendPromise;
 
     // 渲染四维投资分析
-    let html = `<div class="analysis-content">
+    let html = `<div class="analysis-content analysis-current-content">
       <div class="stock-quote-grid">
         <div><span>现价</span><strong>${data.price ? data.price.toFixed(2) : '-'}</strong></div>
         <div><span>涨跌幅</span><strong class="${data.changePercent >= 0 ? 'positive' : 'negative'}">${data.changePercent >= 0 ? '+' : ''}${Number.isFinite(Number(data.changePercent)) ? Number(data.changePercent).toFixed(2) : '-'}%</strong></div>
@@ -2858,12 +2916,15 @@ async function loadStockAnalysis(code, name) {
     // 只追加内容，保留原有头部（股票名称）
     if (loading) loading.style.display = 'none';
     if (loadIndicator) loadIndicator.style.display = 'none';
+    card.dataset.analysisLoaded = '1';
+    card.dataset.analysisLoading = '0';
     card.insertAdjacentHTML('beforeend', html);
   } catch(e) {
     // hide loading, append error (preserve header)
     const loadIndicatorErr = document.getElementById('load-indicator-' + domId);
     if (loading) loading.style.display = 'none';
     if (loadIndicatorErr) loadIndicatorErr.style.display = 'none';
+    if (card) card.dataset.analysisLoading = '0';
     if (card && !card.querySelector('.analysis-error')) {
       card.insertAdjacentHTML('beforeend', '<div class="analysis-error-msg">分析超时或网络错误</div>');
     }
@@ -2883,6 +2944,7 @@ function refreshStockAnalysis() {
 
 // 全局暴露
 window.loadStockAnalysis = loadStockAnalysis;
+window.loadReportStockAnalysisOnOpen = loadReportStockAnalysisOnOpen;
 
 function stockDomId(value) {
   return String(value || '').replace(/[^A-Za-z0-9_-]/g, '_');

@@ -1,0 +1,2 @@
+{"event_type":"kb_workflow_initialized","app":"investment_daily","created_at":"2026-07-07T00:00:00.000Z","note":"Initial audit log for file-based investment daily sub knowledge base workflow."}
+{"event_type":"kb_file_imported","source":"attachments/project-intro-mystic-kb-skill.md","inbox_file":"docs/kb-inbox/files/20260707-225244-project-intro-mystic-kb-skill.md","draft_file":"docs/kb-drafts/20260707-225244-project-intro-mystic-kb-skill.md","domain":"strategy","usable_for":"daily_report","actor":"import-kb-file","created_at":"2026-07-07T14:52:44.834Z"}

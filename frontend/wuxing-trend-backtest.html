@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>五行月运趋势一致性回测</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #eef2f5;
+      --surface: #ffffff;
+      --muted: #f7f9fb;
+      --border: #d9e2ec;
+      --text: #172033;
+      --subtext: #617085;
+      --blue: #2563eb;
+      --green: #16a34a;
+      --red: #dc2626;
+      --amber: #d97706;
+      --ink: #334155;
+    }
+
+    body {
+      min-width: 320px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+      line-height: 1.55;
+    }
+
+    .page {
+      width: min(1240px, 100%);
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .topbar,
+    .panel,
+    .table-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      font-size: 24px;
+      line-height: 1.2;
+      font-weight: 760;
+    }
+
+    .subtitle {
+      color: var(--subtext);
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    .control {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--subtext);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    select {
+      min-width: 150px;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      padding: 0 10px;
+      font-size: 14px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .metric {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      min-width: 0;
+    }
+
+    .metric .label {
+      color: var(--subtext);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .metric .value {
+      font-size: 24px;
+      font-weight: 760;
+      color: var(--ink);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .panel {
+      padding: 16px;
+      min-width: 0;
+    }
+
+    .panel h2 {
+      font-size: 17px;
+      line-height: 1.3;
+      margin-bottom: 4px;
+    }
+
+    .panel-note {
+      color: var(--subtext);
+      font-size: 12px;
+      margin-bottom: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .chart-stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .chart-block {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--muted);
+      overflow: hidden;
+    }
+
+    .chart-title {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--subtext);
+    }
+
+    .chart-title strong {
+      color: var(--text);
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: 260px;
+      background: #fff;
+    }
+
+    .axis {
+      stroke: #c8d2df;
+      stroke-width: 1;
+    }
+
+    .grid-line {
+      stroke: #edf1f5;
+      stroke-width: 1;
+    }
+
+    .candle-up {
+      stroke: var(--red);
+      fill: var(--red);
+    }
+
+    .candle-down {
+      stroke: var(--green);
+      fill: var(--green);
+    }
+
+    .candle-flat {
+      stroke: #64748b;
+      fill: #64748b;
+    }
+
+    .divergence-band {
+      fill: rgba(220, 38, 38, 0.10);
+    }
+
+    .divergence-band.moderate {
+      fill: rgba(217, 119, 6, 0.12);
+    }
+
+    .month-label {
+      fill: #718096;
+      font-size: 10px;
+    }
+
+    .side-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .side-item {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    .side-item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .side-item p {
+      color: var(--subtext);
+      font-size: 12px;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      font-size: 12px;
+      color: var(--subtext);
+      background: #fff;
+    }
+
+    .tag.major {
+      color: #991b1b;
+      border-color: #fecaca;
+      background: #fff1f2;
+    }
+
+    .tag.moderate {
+      color: #92400e;
+      border-color: #fed7aa;
+      background: #fffbeb;
+    }
+
+    .tag.good {
+      color: #166534;
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .table-panel {
+      margin-top: 14px;
+      overflow: hidden;
+    }
+
+    .table-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .table-head h2 {
+      font-size: 17px;
+    }
+
+    .table-scroll {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 820px;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #edf1f5;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8fafc;
+      color: #475569;
+      font-weight: 650;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .number {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .positive {
+      color: var(--red);
+      font-weight: 650;
+    }
+
+    .negative {
+      color: var(--green);
+      font-weight: 650;
+    }
+
+    .muted {
+      color: var(--subtext);
+    }
+
+    .subline {
+      display: block;
+      color: var(--subtext);
+      font-size: 12px;
+      line-height: 1.4;
+      margin-top: 2px;
+      white-space: normal;
+    }
+
+    .footer-note {
+      color: var(--subtext);
+      font-size: 12px;
+      padding: 12px 2px 0;
+    }
+
+    @media (max-width: 980px) {
+      .topbar,
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .actions {
+        justify-content: flex-start;
+      }
+
+      .metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .page {
+        padding: 10px;
+      }
+
+      .topbar,
+      .panel {
+        padding: 14px;
+      }
+
+      h1 {
+        font-size: 20px;
+      }
+
+      .metrics {
+        grid-template-columns: 1fr;
+      }
+
+      .control {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      select {
+        min-width: 0;
+        flex: 1;
+      }
+
+      svg {
+        height: 220px;
+      }
+
+      .chart-title {
+        display: block;
+      }
+
+      .chart-title span {
+        display: block;
+        margin-top: 2px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div>
+        <h1>五行月运趋势一致性回测</h1>
+        <p class="subtitle">MVP 版本：用月运评分和行业 ETF 代理走势做多口径趋势一致性对比，重点看方向是否同向和背离月份。</p>
+      </div>
+      <div class="actions">
+        <label class="control">口径
+          <select id="scenarioSelect"></select>
+        </label>
+        <label class="control">行业
+          <select id="industrySelect"></select>
+        </label>
+        <label class="control">显示
+          <select id="filterSelect">
+            <option value="all">全部月份</option>
+            <option value="divergent">只看背离</option>
+            <option value="major">只看重大背离</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <section class="metrics" id="metrics"></section>
+
+    <div class="layout">
+      <section class="panel">
+        <h2 id="chartHeading">行业趋势对比</h2>
+        <p class="panel-note" id="chartNote">加载中...</p>
+        <div class="chart-stack">
+          <div class="chart-block">
+            <div class="chart-title"><strong>月运评分趋势图</strong><span>线体=上月评分到本月评分；每月只有一个评分</span></div>
+            <svg id="signalChart" role="img" aria-label="月运评分趋势图"></svg>
+          </div>
+          <div class="chart-block">
+            <div class="chart-title"><strong>行业走势 K 线</strong><span id="priceChartTitle">行业 ETF 代理走势</span></div>
+            <svg id="priceChart" role="img" aria-label="行业走势K线"></svg>
+          </div>
+        </div>
+        <p class="footer-note">评分趋势图只是展示评分从上月到本月的变化，不代表评分本身有真实开盘/收盘。红色代表上行，绿色代表下行；浅红/橙色背景代表重大/中度背离月份。</p>
+      </section>
+
+      <aside class="panel">
+        <h2>背离提示</h2>
+        <p class="panel-note">优先关注“信号明显偏多但行情下跌”或“信号偏空但行情上涨”的月份。</p>
+        <div class="side-list" id="sideList"></div>
+      </aside>
+    </div>
+
+    <section class="table-panel">
+      <div class="table-head">
+        <h2>月度明细</h2>
+        <span class="muted" id="tableHint"></span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>月份 / 区间</th>
+              <th>星级</th>
+              <th>评分</th>
+              <th>窗口涨跌</th>
+              <th>一致性</th>
+              <th>背离</th>
+              <th>外力事件</th>
+            </tr>
+          </thead>
+          <tbody id="detailRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="table-panel">
+      <div class="table-head">
+        <h2>行业总览</h2>
+        <span class="muted">按重大背离数量和一致率排序</span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>行业</th>
+              <th>样本</th>
+              <th>一致率</th>
+              <th>重大背离</th>
+              <th>平均涨跌</th>
+              <th>平均评分</th>
+              <th>平均分差</th>
+            </tr>
+          </thead>
+          <tbody id="industryRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const DATA_URL = 'wuxing-trend-backtest-data.json?v=' + Date.now();
+    let dataset = null;
+    let currentIndustry = '';
+    let currentScenarioId = '';
+
+    const scenarioSelect = document.getElementById('scenarioSelect');
+    const industrySelect = document.getElementById('industrySelect');
+    const filterSelect = document.getElementById('filterSelect');
+    const metricsEl = document.getElementById('metrics');
+    const chartHeading = document.getElementById('chartHeading');
+    const chartNote = document.getElementById('chartNote');
+    const priceChartTitle = document.getElementById('priceChartTitle');
+    const sideList = document.getElementById('sideList');
+    const detailRows = document.getElementById('detailRows');
+    const industryRows = document.getElementById('industryRows');
+    const tableHint = document.getElementById('tableHint');
+
+    fetch(DATA_URL)
+      .then(res => {
+        if (!res.ok) throw new Error('数据文件加载失败');
+        return res.json();
+      })
+      .then(data => {
+        dataset = data;
+        initControls();
+        renderAll();
+      })
+      .catch(error => {
+        document.body.innerHTML = '<div class="page"><section class="panel"><h1>回测数据加载失败</h1><p class="panel-note">' + escapeHtml(error.message) + '</p></section></div>';
+      });
+
+    industrySelect.addEventListener('change', () => {
+      currentIndustry = industrySelect.value;
+      renderAll();
+    });
+
+    scenarioSelect.addEventListener('change', () => {
+      currentScenarioId = scenarioSelect.value;
+      rebuildIndustryOptions(currentIndustry);
+      renderAll();
+    });
+
+    filterSelect.addEventListener('change', renderAll);
+
+    function initControls() {
+      const scenarioList = dataset.scenarioList && dataset.scenarioList.length
+        ? dataset.scenarioList
+        : [{ id: 'default', shortName: '默认口径', name: '默认口径' }];
+      currentScenarioId = dataset.defaultScenarioId || scenarioList[0].id;
+      scenarioSelect.innerHTML = scenarioList.map(item => (
+        '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.shortName || item.name) + '</option>'
+      )).join('');
+      scenarioSelect.value = currentScenarioId;
+      rebuildIndustryOptions();
+    }
+
+    function activeScenario() {
+      if (dataset.scenarios && dataset.scenarios[currentScenarioId]) {
+        return dataset.scenarios[currentScenarioId];
+      }
+      return {
+        id: 'default',
+        shortName: '默认口径',
+        description: '',
+        signalMode: 'delta',
+        rows: dataset.rows || [],
+        summary: dataset.summary
+      };
+    }
+
+    function rebuildIndustryOptions(preferredIndustry) {
+      const scenario = activeScenario();
+      const sorted = [...scenario.summary.byIndustry].sort((a, b) => b.majorDivergenceCount - a.majorDivergenceCount);
+      const hasPreferred = preferredIndustry && dataset.industries.includes(preferredIndustry);
+      currentIndustry = hasPreferred ? preferredIndustry : (sorted[0] ? sorted[0].industry : dataset.industries[0]);
+      industrySelect.innerHTML = '';
+      dataset.industries.forEach(industry => {
+        const option = document.createElement('option');
+        option.value = industry;
+        const summary = scenario.summary.byIndustry.find(item => item.industry === industry);
+        option.textContent = summary ? `${industry} · 当前行业一致率 ${formatPct(summary.consistencyRate)}` : industry;
+        industrySelect.appendChild(option);
+      });
+      industrySelect.value = currentIndustry;
+    }
+
+    function renderAll() {
+      renderMetrics();
+      renderIndustryTable();
+      const rows = getCurrentRows();
+      renderCharts(rows);
+      renderDetail(rows);
+      renderSide(rows);
+    }
+
+    function getCurrentRows() {
+      const filter = filterSelect.value;
+      let rows = activeScenario().rows.filter(row => row.industry === currentIndustry && row.hasPrice);
+      if (filter === 'divergent') rows = rows.filter(row => row.consistency === 'divergent');
+      if (filter === 'major') rows = rows.filter(row => row.divergenceLevel === 'major');
+      return rows;
+    }
+
+    function renderMetrics() {
+      const scenario = activeScenario();
+      const s = scenario.summary;
+      const metrics = [
+        ['全行业数', s.industries],
+        ['回测月份', s.months],
+        ['全行业样本', s.comparedRows],
+        ['全行业一致率', formatPct(s.consistencyRate)],
+        ['全行业重大背离', s.majorDivergence]
+      ];
+      metricsEl.innerHTML = metrics.map(item => (
+        '<div class="metric"><div class="label">' + item[0] + '</div><div class="value">' + item[1] + '</div></div>'
+      )).join('');
+    }
+
+    function renderIndustryTable() {
+      industryRows.innerHTML = activeScenario().summary.byIndustry.map(item => {
+        return '<tr>' +
+          '<td><button type="button" data-industry="' + escapeHtml(item.industry) + '" class="tag">' + escapeHtml(item.industry) + '</button></td>' +
+          '<td class="number">' + item.observations + '</td>' +
+          '<td class="number">' + formatPct(item.consistencyRate) + '</td>' +
+          '<td class="number">' + item.majorDivergenceCount + '</td>' +
+          '<td class="number ' + signClass(item.avgReturnPct) + '">' + signedPct(item.avgReturnPct) + '</td>' +
+          '<td class="number">' + formatNumber(item.avgScore) + '</td>' +
+          '<td class="number ' + signClass(item.avgScoreDelta) + '">' + signed(item.avgScoreDelta) + '</td>' +
+          '</tr>';
+      }).join('');
+
+      industryRows.querySelectorAll('button[data-industry]').forEach(button => {
+        button.addEventListener('click', () => {
+          currentIndustry = button.dataset.industry;
+          industrySelect.value = currentIndustry;
+          renderAll();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      });
+    }
+
+    function renderCharts(rows) {
+      const scenario = activeScenario();
+      const industrySummary = scenario.summary.byIndustry.find(item => item.industry === currentIndustry);
+      chartHeading.textContent = currentIndustry + ' 趋势对比';
+      const proxy = rows[0] && rows[0].proxy ? rows[0].proxy.name + ' ' + rows[0].proxy.symbol : '无代理行情';
+      priceChartTitle.textContent = scenario.shortName || '行业 ETF 代理走势';
+      chartNote.textContent = '口径：' + (scenario.name || scenario.shortName) + '；代理标的：' + proxy + '；当前行业一致率：' + formatPct(industrySummary && industrySummary.consistencyRate) + '；当前行业样本：' + (industrySummary ? industrySummary.observations : 0) + '个月。' + (scenario.description ? ' ' + scenario.description : '');
+      drawCandles(document.getElementById('signalChart'), rows, row => row.signalOhlc, { min: 0, max: 100, valueFormatter: v => v.toFixed(0) });
+      drawCandles(document.getElementById('priceChart'), rows, row => row.priceOhlc, { valueFormatter: v => v.toFixed(2) });
+    }
+
+    function drawCandles(svg, rows, accessor, options) {
+      const width = Math.max(svg.clientWidth || 800, 320);
+      const height = svg.clientHeight || 260;
+      svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+      svg.innerHTML = '';
+
+      if (!rows.length) {
+        svg.appendChild(textEl(width / 2, height / 2, '当前筛选无数据', 'month-label', 'middle'));
+        return;
+      }
+
+      const margin = { top: 18, right: 44, bottom: 34, left: 42 };
+      const innerW = width - margin.left - margin.right;
+      const innerH = height - margin.top - margin.bottom;
+      const values = rows.flatMap(row => {
+        const o = accessor(row);
+        return o ? [o.open, o.high, o.low, o.close].map(Number).filter(Number.isFinite) : [];
+      });
+      let min = options.min !== undefined ? options.min : Math.min(...values);
+      let max = options.max !== undefined ? options.max : Math.max(...values);
+      if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
+        min = 0;
+        max = 1;
+      }
+      const pad = (max - min) * 0.08;
+      const yMin = options.min !== undefined ? options.min : min - pad;
+      const yMax = options.max !== undefined ? options.max : max + pad;
+      const step = innerW / Math.max(rows.length, 1);
+      const candleW = Math.max(4, Math.min(14, step * 0.52));
+      const y = value => margin.top + (yMax - value) / (yMax - yMin) * innerH;
+      const x = index => margin.left + step * index + step / 2;
+
+      for (let i = 0; i <= 4; i++) {
+        const yy = margin.top + innerH / 4 * i;
+        svg.appendChild(lineEl(margin.left, yy, width - margin.right, yy, 'grid-line'));
+        const val = yMax - (yMax - yMin) / 4 * i;
+        svg.appendChild(textEl(width - margin.right + 6, yy + 4, options.valueFormatter(val), 'month-label', 'start'));
+      }
+      svg.appendChild(lineEl(margin.left, margin.top, margin.left, margin.top + innerH, 'axis'));
+      svg.appendChild(lineEl(margin.left, margin.top + innerH, width - margin.right, margin.top + innerH, 'axis'));
+
+      rows.forEach((row, index) => {
+        const ohlc = accessor(row);
+        if (!ohlc) return;
+        const cx = x(index);
+        if (row.divergenceLevel === 'major' || row.divergenceLevel === 'moderate') {
+          const band = rectEl(cx - step / 2, margin.top, step, innerH, 'divergence-band ' + row.divergenceLevel);
+          svg.appendChild(band);
+        }
+        const open = Number(ohlc.open);
+        const close = Number(ohlc.close);
+        const high = Number(ohlc.high);
+        const low = Number(ohlc.low);
+        const cls = close > open ? 'candle-up' : close < open ? 'candle-down' : 'candle-flat';
+        svg.appendChild(lineEl(cx, y(high), cx, y(low), cls));
+        const top = Math.min(y(open), y(close));
+        const bottom = Math.max(y(open), y(close));
+        const bodyH = Math.max(2, bottom - top);
+        const rect = rectEl(cx - candleW / 2, top, candleW, bodyH, cls);
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = row.month + ' ' + row.industry + ' | 分数 ' + row.score + ' | 行情 ' + signedPct(row.priceReturnPct);
+        rect.appendChild(title);
+        svg.appendChild(rect);
+
+        if (index % 3 === 0 || index === rows.length - 1) {
+          svg.appendChild(textEl(cx, height - 12, row.month.slice(2), 'month-label', 'middle'));
+        }
+      });
+    }
+
+    function renderDetail(rows) {
+      tableHint.textContent = currentIndustry + ' · ' + rows.length + ' 条';
+      detailRows.innerHTML = rows.map(row => {
+        return '<tr>' +
+          '<td class="number">' + row.month + '<span class="subline">' + escapeHtml(row.windowLabel || '') + '</span></td>' +
+          '<td>' + (row.stars || '-') + '★ ' + (row.rankTag ? '<span class="tag good">' + row.rankTag + '</span>' : '') + '</td>' +
+          '<td class="number">' + formatNumber(row.score) + '<span class="subline ' + signClass(row.scoreDelta) + '">变化 ' + signed(row.scoreDelta) + '</span></td>' +
+          '<td class="number ' + signClass(row.priceReturnPct) + '">' + signedPct(row.priceReturnPct) + '</td>' +
+          '<td>' + consistencyLabel(row.consistency) + '</td>' +
+          '<td>' + divergenceLabel(row.divergenceLevel) + '</td>' +
+          '<td>' + eventHtml(row.events) + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    function renderSide(rows) {
+      const notable = rows
+        .filter(row => row.divergenceLevel === 'major' || row.divergenceLevel === 'moderate')
+        .slice()
+        .sort((a, b) => (levelWeight(b.divergenceLevel) - levelWeight(a.divergenceLevel)) || Math.abs(b.priceReturnPct) - Math.abs(a.priceReturnPct))
+        .slice(0, 8);
+
+      if (!notable.length) {
+        sideList.innerHTML = '<div class="side-item"><strong>当前筛选没有明显背离</strong><p>可以切换到其他行业或查看全部月份。</p></div>';
+        return;
+      }
+
+      sideList.innerHTML = notable.map(row => (
+        '<div class="side-item">' +
+        '<strong>' + row.month + ' · ' + divergenceText(row.divergenceLevel) + '</strong>' +
+        '<p>评分 ' + formatNumber(row.score) + '，变化 ' + signed(row.scoreDelta) + '，窗口行情 ' + signedPct(row.priceReturnPct) + '，星级 ' + row.stars + '★。</p>' +
+        '<p>' + escapeHtml(row.windowLabel || '') + '</p>' +
+        '<div class="tag-row">' + eventHtml(row.events) + '</div>' +
+        '</div>'
+      )).join('');
+    }
+
+    function lineEl(x1, y1, x2, y2, cls) {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      node.setAttribute('x1', x1);
+      node.setAttribute('y1', y1);
+      node.setAttribute('x2', x2);
+      node.setAttribute('y2', y2);
+      node.setAttribute('class', cls);
+      return node;
+    }
+
+    function rectEl(x, y, w, h, cls) {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      node.setAttribute('x', x);
+      node.setAttribute('y', y);
+      node.setAttribute('width', Math.max(0, w));
+      node.setAttribute('height', Math.max(0, h));
+      node.setAttribute('class', cls);
+      return node;
+    }
+
+    function textEl(x, y, text, cls, anchor) {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      node.setAttribute('x', x);
+      node.setAttribute('y', y);
+      node.setAttribute('class', cls);
+      node.setAttribute('text-anchor', anchor || 'start');
+      node.textContent = text;
+      return node;
+    }
+
+    function formatPct(value) {
+      if (value === null || value === undefined || value === '') return '-';
+      return Number.isFinite(Number(value)) ? Number(value).toFixed(2) + '%' : '-';
+    }
+
+    function signedPct(value) {
+      if (value === null || value === undefined || value === '') return '-';
+      if (!Number.isFinite(Number(value))) return '-';
+      const n = Number(value);
+      return (n > 0 ? '+' : '') + n.toFixed(2) + '%';
+    }
+
+    function signed(value) {
+      if (value === null || value === undefined || value === '') return '-';
+      if (!Number.isFinite(Number(value))) return '-';
+      const n = Number(value);
+      return (n > 0 ? '+' : '') + n.toFixed(2);
+    }
+
+    function formatNumber(value) {
+      if (value === null || value === undefined || value === '') return '-';
+      return Number.isFinite(Number(value)) ? Number(value).toFixed(2).replace(/\.00$/, '') : '-';
+    }
+
+    function signClass(value) {
+      if (value === null || value === undefined || value === '') return '';
+      const n = Number(value);
+      if (!Number.isFinite(n) || n === 0) return '';
+      return n > 0 ? 'positive' : 'negative';
+    }
+
+    function consistencyLabel(value) {
+      if (value === 'consistent') return '<span class="tag good">同向</span>';
+      if (value === 'divergent') return '<span class="tag major">背离</span>';
+      if (value === 'neutral') return '<span class="tag">中性</span>';
+      return '<span class="tag">缺数据</span>';
+    }
+
+    function divergenceLabel(value) {
+      if (value === 'major') return '<span class="tag major">重大背离</span>';
+      if (value === 'moderate') return '<span class="tag moderate">中度背离</span>';
+      return '<span class="tag">无</span>';
+    }
+
+    function divergenceText(value) {
+      if (value === 'major') return '重大背离';
+      if (value === 'moderate') return '中度背离';
+      return '无背离';
+    }
+
+    function levelWeight(value) {
+      if (value === 'major') return 2;
+      if (value === 'moderate') return 1;
+      return 0;
+    }
+
+    function eventHtml(events) {
+      if (!events || !events.length) return '<span class="tag">无标记</span>';
+      return events.map(event => '<span class="tag">' + escapeHtml(event.title) + '</span>').join('');
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

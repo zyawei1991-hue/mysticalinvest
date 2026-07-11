@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>玄学投资日报 ToC 竞品与商业模式分析</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: #eef2f6;
+      color: #172033;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.62;
+      letter-spacing: 0;
+    }
+    a { color: #145db8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .page { width: min(1180px, 100%); margin: 0 auto; padding: 18px; }
+    .hero, .panel, .card, .source-card {
+      background: #fff;
+      border: 1px solid #d9e2ec;
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+    }
+    .hero { padding: 26px; margin-bottom: 14px; overflow: hidden; }
+    .eyebrow { margin: 0 0 8px; color: #526173; font-size: 13px; font-weight: 700; }
+    h1 { margin: 0; font-size: 30px; line-height: 1.22; }
+    h2 { margin: 0 0 12px; font-size: 21px; }
+    h3 { margin: 0 0 8px; font-size: 16px; }
+    p { margin: 8px 0; }
+    .subtitle { margin: 10px 0 0; color: #526173; font-size: 14px; max-width: 860px; }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
+      gap: 18px;
+      align-items: center;
+    }
+    .hero-visual {
+      min-height: 220px;
+      padding: 18px;
+      border: 1px solid #cfd9e4;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #f8fafc 0%, #fff7ed 48%, #eef6ff 100%);
+      display: grid;
+      gap: 10px;
+      align-content: center;
+    }
+    .orbit {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .orbit span {
+      display: block;
+      padding: 10px;
+      min-height: 58px;
+      border-radius: 8px;
+      border: 1px solid rgba(23, 32, 51, 0.12);
+      background: rgba(255,255,255,0.76);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .orbit strong { display: block; font-size: 20px; }
+    .hero-note {
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(20, 93, 184, 0.08);
+      color: #24415f;
+      font-size: 13px;
+    }
+    .panel { padding: 20px; margin-bottom: 14px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .card { padding: 16px; min-width: 0; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #145db8;
+      border: 1px solid #cfe0f4;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .tag.warn { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
+    .tag.good { background: #ecfdf5; color: #047857; border-color: #bbf7d0; }
+    .muted { color: #64748b; font-size: 13px; }
+    .kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+    .kpi {
+      padding: 14px;
+      border: 1px solid #d9e2ec;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .kpi strong { display: block; font-size: 24px; line-height: 1.1; }
+    .matrix {
+      position: relative;
+      min-height: 390px;
+      border: 1px solid #d9e2ec;
+      border-radius: 8px;
+      background:
+        linear-gradient(90deg, rgba(20,93,184,0.08) 0 50%, rgba(245,158,11,0.10) 50% 100%),
+        linear-gradient(0deg, rgba(5,150,105,0.08) 0 50%, rgba(220,38,38,0.08) 50% 100%);
+      overflow: hidden;
+    }
+    .axis-x, .axis-y {
+      position: absolute;
+      color: #334155;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .axis-x { left: 50%; bottom: 8px; transform: translateX(-50%); }
+    .axis-y { left: 8px; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: left center; }
+    .bubble {
+      position: absolute;
+      width: 150px;
+      min-height: 54px;
+      padding: 9px;
+      border-radius: 8px;
+      border: 1px solid rgba(23, 32, 51, 0.16);
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+      font-size: 12px;
+    }
+    .bubble strong { display: block; font-size: 13px; }
+    .b1 { left: 10%; top: 12%; }
+    .b2 { right: 12%; top: 14%; }
+    .b3 { left: 11%; bottom: 20%; }
+    .b4 { right: 11%; bottom: 18%; }
+    .b5 { right: 31%; top: 44%; border-color: #dc2626; }
+    .b6 { left: 42%; bottom: 30%; border-color: #047857; background: #f0fdf4; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th, td { border: 1px solid #d9e2ec; padding: 9px; text-align: left; vertical-align: top; }
+    th { background: #f8fafc; color: #334155; }
+    .funnel {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .funnel-step {
+      display: grid;
+      grid-template-columns: 128px 1fr 120px;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid #d9e2ec;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .bar {
+      height: 16px;
+      border-radius: 999px;
+      background: #dbeafe;
+      overflow: hidden;
+    }
+    .bar span { display: block; height: 100%; border-radius: inherit; background: #2563eb; }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .flow-item {
+      min-height: 96px;
+      padding: 12px;
+      border: 1px solid #d9e2ec;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .flow-item strong { display: block; margin-bottom: 4px; }
+    .risk-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .allow { border-left: 5px solid #059669; }
+    .deny { border-left: 5px solid #dc2626; }
+    ul, ol { margin: 8px 0 8px 20px; padding: 0; }
+    li { margin: 4px 0; }
+    .source-list { display: grid; gap: 8px; }
+    .source-card {
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 10px;
+      align-items: start;
+      font-size: 13px;
+    }
+    .callout {
+      border-radius: 8px;
+      padding: 12px 14px;
+      border: 1px solid #cfe0f4;
+      background: #eff6ff;
+      color: #24415f;
+    }
+    .warning {
+      border-color: #fecdd3;
+      background: #fff1f2;
+      color: #7f1d1d;
+    }
+    @media (max-width: 900px) {
+      .page { padding: 12px; }
+      .hero, .panel { padding: 16px; }
+      .hero-grid, .grid-2, .grid-3, .risk-grid { grid-template-columns: 1fr; }
+      .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .flow { grid-template-columns: 1fr; }
+      .funnel-step { grid-template-columns: 1fr; }
+      .source-card { grid-template-columns: 1fr; }
+      .matrix { min-height: 620px; }
+      .bubble { width: 42%; }
+      .b1 { left: 5%; top: 7%; }
+      .b2 { right: 5%; top: 7%; }
+      .b3 { left: 5%; top: 32%; bottom: auto; }
+      .b4 { right: 5%; top: 32%; bottom: auto; }
+      .b5 { left: 29%; top: 57%; right: auto; }
+      .b6 { left: 29%; top: 75%; bottom: auto; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+    @media (max-width: 560px) {
+      h1 { font-size: 24px; }
+      .kpi-row { grid-template-columns: 1fr; }
+      .bubble { width: 90%; left: 5% !important; right: auto !important; }
+      .b1 { top: 5%; }
+      .b2 { top: 20%; }
+      .b3 { top: 35%; }
+      .b4 { top: 50%; }
+      .b5 { top: 65%; }
+      .b6 { top: 80%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">资料检索截至 2026-07-08 · 五行投资日报 ToC 运营参考</p>
+          <h1>玄学投资日报竞品与商业模式分析</h1>
+          <p class="subtitle">这份报告把泛心理玄学 App、抖音/小红书/公众号玄学博主、金融占星内容机构和非法荐股灰产放在同一张图里比较，重点拆解获客入口、产品结构、变现路径、合规边界，以及五行投资日报可以采用的 ToC 路线。</p>
+          <div class="kpi-row">
+            <div class="kpi"><strong>5</strong><span class="muted">类相邻玩家</span></div>
+            <div class="kpi"><strong>4</strong><span class="muted">层推荐产品</span></div>
+            <div class="kpi"><strong>90天</strong><span class="muted">验证路线</span></div>
+            <div class="kpi"><strong>0</strong><span class="muted">个股荐股容忍</span></div>
+          </div>
+        </div>
+        <div class="hero-visual" aria-label="报告视觉摘要">
+          <div class="orbit">
+            <span><strong>获客</strong>短视频 / 图文 / 公众号</span>
+            <span><strong>产品</strong>日报 / 月运 / 回测 / 问答</span>
+            <span><strong>变现</strong>订阅 / 社群 / B2B 授权</span>
+            <span><strong>边界</strong>不荐股 / 不承诺收益</span>
+          </div>
+          <div class="hero-note">推荐定位：文化视角 + 市场情绪观察 + 数据回测验证 + 风险提示。</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="panel">
+      <h2>一、先给结论</h2>
+      <div class="grid-3">
+        <div class="card">
+          <span class="tag good">可借鉴</span>
+          <h3>泛心理/玄学 App</h3>
+          <p>学习它们的免费入口、个性化日运/月运、订阅会员和 AI 问答，但不要复制按分钟咨询和强预测话术。</p>
+        </div>
+        <div class="card">
+          <span class="tag good">可借鉴</span>
+          <h3>内容博主打法</h3>
+          <p>抖音适合短视频破圈，小红书适合图文搜索和收藏，公众号适合长逻辑沉淀和转化。</p>
+        </div>
+        <div class="card">
+          <span class="tag warn">必须避开</span>
+          <h3>荐股灰产路径</h3>
+          <p>不能做个股买卖建议、收益承诺、胜率承诺、喊单社群、AI 选股软件和代客操作。</p>
+        </div>
+      </div>
+      <div class="callout" style="margin-top:12px;">
+        五行投资日报的安全路径不是“玄学预测股市”，而是用玄学内容做差异化入口，用真实行情和回测做验证，用会员订阅和内容授权变现。
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>二、竞品定位地图</h2>
+      <p class="muted">横轴是产品化程度，纵轴是合规风险。我们应该站在“内容产品化较强、合规风险可控”的区域。</p>
+      <div class="matrix">
+        <span class="axis-y">合规风险：低 → 高</span>
+        <span class="axis-x">产品化程度：内容号 → 工具/订阅/报告</span>
+        <div class="bubble b1"><strong>小红书/抖音玄学博主</strong>强流量、强互动、弱标准化。</div>
+        <div class="bubble b2"><strong>测测/准了类 App</strong>工具、会员、AI、咨询组合。</div>
+        <div class="bubble b3"><strong>公众号玄学内容</strong>适合长文、私域和社群承接。</div>
+        <div class="bubble b4"><strong>若道/金融占星</strong>课程、报告、高客单内容。</div>
+        <div class="bubble b5"><strong>AI 选股/荐股灰产</strong>高风险，不能进入。</div>
+        <div class="bubble b6"><strong>五行投资日报</strong>文化视角 + 数据验证 + 风险提示。</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>三、代表玩家拆解</h2>
+      <div class="grid-2">
+        <div class="card">
+          <span class="tag">测测 / Cece</span>
+          <h3>免费测试入口 + AI/达人咨询</h3>
+          <p>App Store 页面显示，测测提供人格测试、社区、心理倾诉、性格分析、个人报告等功能，并有连续包月、包季、包年会员订阅。公开报道将其模式概括为“免费测试为流量入口、付费咨询为核心变现”。</p>
+          <ul>
+            <li>获客：星座、八字、心理测试、情感问题。</li>
+            <li>留存：社区、AI 问答、报告、达人在线。</li>
+            <li>变现：会员、测测币、咨询抽成。</li>
+            <li>借鉴：日报要有低门槛入口和个性化解释。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="tag">准了 / 星座女神</span>
+          <h3>IP 信任 + 工具 + 订阅</h3>
+          <p>App Store 页面显示，准了提供星盘、八字、紫微、二十八星宿、日运/月运/年运、AI 提问和 1v1 咨询；会员订阅价格为连续包月 39 元、连续包年 299 元。</p>
+          <ul>
+            <li>获客：莫小奇 IP 和星座内容。</li>
+            <li>留存：专属运势、关系分析、AI 问答。</li>
+            <li>变现：会员订阅、报告、咨询。</li>
+            <li>借鉴：月运总纲 + 每日日报很适合订阅化。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="tag">抖音/小红书玄学博主</span>
+          <h3>内容爆款 + 私域转化</h3>
+          <p>常见路径是今日运势、塔罗抽牌、财富运、事业运等内容吸粉，再通过评论、私信、微信私域转向单次解读、套餐、课程或社群。</p>
+          <ul>
+            <li>获客：短视频、图文、互动抽牌、关键词私信。</li>
+            <li>留存：私域群、系列内容、固定栏目。</li>
+            <li>变现：咨询、课程、社群、周边。</li>
+            <li>借鉴：小红书做图卡，抖音做 60 秒市场情绪。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="tag">若道 / 金融占星</span>
+          <h3>专业课程 + 金融报告</h3>
+          <p>若道官网展示其占星课程、报告和咨询服务，也有金融占星课程和金融报告产品。这类产品的优势在于“知识体系 + 周期框架 + 高客单内容”。</p>
+          <ul>
+            <li>获客：专业占星学习和金融周期兴趣。</li>
+            <li>留存：课程、年度/月度报告、讲座。</li>
+            <li>变现：课程费、报告订阅、高客单内容。</li>
+            <li>借鉴：可做月度复盘、白皮书、B2B 内容授权。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card deny" style="margin-top:12px;">
+        <span class="tag warn">反面样本</span>
+        <h3>AI 选股/非法荐股灰产</h3>
+        <p>深圳证监局 2026 年风险提示明确提到，不法分子借助抖音、小红书、微信公众号、自建网站等平台，以 AI 量化选股、培训荐股、假冒持牌机构人员荐股等手段实施非法活动。这个路径只能作为风险边界，不能作为商业模式参考。</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>四、商业模式漏斗</h2>
+      <p class="muted">建议把付费建立在内容深度、历史回放、回测解释和社群授权上，而不是建立在收益承诺上。</p>
+      <div class="funnel">
+        <div class="funnel-step"><strong>免费触达</strong><div class="bar"><span style="width:100%"></span></div><span>抖音/小红书</span></div>
+        <div class="funnel-step"><strong>信任沉淀</strong><div class="bar"><span style="width:78%"></span></div><span>公众号长文</span></div>
+        <div class="funnel-step"><strong>产品承接</strong><div class="bar"><span style="width:58%"></span></div><span>网站/小程序</span></div>
+        <div class="funnel-step"><strong>轻付费</strong><div class="bar"><span style="width:38%"></span></div><span>会员订阅</span></div>
+        <div class="funnel-step"><strong>高价值</strong><div class="bar"><span style="width:24%"></span></div><span>B2B/社群授权</span></div>
+      </div>
+      <table>
+        <thead>
+          <tr><th>模式</th><th>参考客单</th><th>适配度</th><th>适合做什么</th><th>不适合做什么</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>免费内容</td><td>0 元</td><td>高</td><td>市场五行情绪、行业风格图卡</td><td>承诺收益</td></tr>
+          <tr><td>会员订阅</td><td>19-99 元/月，199-699 元/年</td><td>高</td><td>完整日报、月运总纲、历史回放</td><td>买卖点服务</td></tr>
+          <tr><td>单次报告</td><td>29-199 元/份</td><td>中</td><td>月度行业风格、回测复盘</td><td>个股诊断报告</td></tr>
+          <tr><td>社群订阅</td><td>99-399 元/月</td><td>中高</td><td>日报解读、复盘讨论</td><td>喊单群</td></tr>
+          <tr><td>B2B 授权</td><td>1999 元/月起</td><td>高</td><td>社群日报、图卡包、公众号长文包</td><td>替对方荐股</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>五、五行投资日报的产品分层</h2>
+      <div class="flow">
+        <div class="flow-item"><strong>免费版</strong><span class="muted">今日五行市场情绪、月运摘要、3 个行业观察。</span></div>
+        <div class="flow-item"><strong>会员版</strong><span class="muted">完整日报、月运总纲、历史回放、行业/ETF 观察。</span></div>
+        <div class="flow-item"><strong>Pro 版</strong><span class="muted">月度复盘、回测图、关注行业提醒、直播解读。</span></div>
+        <div class="flow-item"><strong>B2B 版</strong><span class="muted">社群日报授权、图卡包、公众号长文包、合规话术。</span></div>
+        <div class="flow-item"><strong>知识库版</strong><span class="muted">方法论、回测口径、行业映射、可审计来源。</span></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>六、平台运营打法</h2>
+      <table>
+        <thead>
+          <tr><th>平台</th><th>内容形态</th><th>核心目标</th><th>建议栏目</th><th>注意事项</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>抖音</td><td>30-90 秒短视频</td><td>破圈获客</td><td>今日市场五行情绪、本月风险窗口、背离复盘</td><td>不说个股，不说收益</td></tr>
+          <tr><td>小红书</td><td>图文卡片、清单、矩阵</td><td>搜索和收藏</td><td>行业温度计、五行行业映射卡、ETF 观察清单</td><td>ETF 只做观察，不做买卖</td></tr>
+          <tr><td>公众号</td><td>长文、周报、月报</td><td>信任沉淀和转化</td><td>完整日报摘要、周度复盘、月运总纲</td><td>声明口径固定</td></tr>
+          <tr><td>网站/小程序</td><td>完整日报、回测、知识库</td><td>产品承接和付费</td><td>完整日报、历史回放、回测透明页</td><td>显示样本数和局限</td></tr>
+          <tr><td>社群</td><td>提醒、解读、复盘</td><td>留存和复购</td><td>日报解读、用户问题答疑</td><td>不喊单，不代客决策</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>七、合规边界图</h2>
+      <div class="risk-grid">
+        <div class="card allow">
+          <span class="tag good">允许</span>
+          <ul>
+            <li>文化视角下的市场观察。</li>
+            <li>行业风格、市场情绪、风险窗口。</li>
+            <li>历史回测、样本数、口径说明。</li>
+            <li>ETF/行业代理走势的中性展示。</li>
+            <li>日报使用教学和知识库解释。</li>
+          </ul>
+        </div>
+        <div class="card deny">
+          <span class="tag warn">禁止</span>
+          <ul>
+            <li>个股买卖建议、点位预测、仓位指令。</li>
+            <li>胜率承诺、收益承诺、保本承诺。</li>
+            <li>入群喊单、免费诊股、荐股收费。</li>
+            <li>AI 自动选股软件售卖。</li>
+            <li>远程操作或指导用户账户交易。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout warning" style="margin-top:12px;">
+        监管依据要内置到产品：证监会已明确关注利用天干地支、阴阳五行等理论预测证券走势或提供投资建议的违规风险；深圳证监局 2026 年也点名了抖音、小红书、公众号、自建网站上的 AI 量化选股和培训荐股风险。
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>八、90 天执行路线</h2>
+      <div class="grid-3">
+        <div class="card">
+          <span class="tag">1-30 天</span>
+          <h3>验证内容吸引力</h3>
+          <ul>
+            <li>抖音/小红书各 30 条。</li>
+            <li>公众号 10 篇长文。</li>
+            <li>指标：收藏率、评论问题、关注率。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="tag">31-60 天</span>
+          <h3>验证产品留存</h3>
+          <ul>
+            <li>开放完整日报和历史回放。</li>
+            <li>建立免费提醒和体验群。</li>
+            <li>指标：7 日留存、打开率、访问深度。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <span class="tag">61-90 天</span>
+          <h3>验证付费路径</h3>
+          <ul>
+            <li>试水会员和 B2B 内容包。</li>
+            <li>试水月度直播解读。</li>
+            <li>指标：转化、退款、投诉、复购。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>九、推荐定位和栏目</h2>
+      <div class="grid-2">
+        <div class="card">
+          <h3>一句话定位</h3>
+          <p>用五行月运做市场情绪先验，用真实行情做每日验证，用回测和复盘保持克制。</p>
+          <h3>可用 slogan</h3>
+          <ul>
+            <li>看市场，不求神。</li>
+            <li>五行看风格，数据做验证。</li>
+            <li>不是荐股，是市场情绪日报。</li>
+            <li>用文化视角理解市场，用风险纪律约束动作。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>优先栏目</h3>
+          <ul>
+            <li>今日五行市场情绪。</li>
+            <li>本月行业风格矩阵。</li>
+            <li>重大背离复盘。</li>
+            <li>五行行业映射卡。</li>
+            <li>回测透明页。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>十、资料来源</h2>
+      <div class="source-list">
+        <div class="source-card"><strong>测测 App Store</strong><span><a href="https://apps.apple.com/us/app/%E6%B5%8B%E6%B5%8B-%E5%BF%83%E7%90%86%E6%83%85%E6%84%9Fai%E9%97%AE%E7%AD%94%E7%A4%BE%E5%8C%BA/id756771906?l=zh-Hant-TW">功能和会员价格</a></span></div>
+        <div class="source-card"><strong>测测官网</strong><span><a href="https://www.cece.com/">公司和产品介绍</a></span></div>
+        <div class="source-card"><strong>极目新闻</strong><span><a href="https://www.ctdsb.net/c1716_202603/2685812.html">测测商业模式、用户和达人规模报道</a></span></div>
+        <div class="source-card"><strong>准了 App Store</strong><span><a href="https://apps.apple.com/us/app/%E5%87%86%E4%BA%86-%E6%98%9F%E5%BA%A7%E5%A1%94%E7%BD%97%E7%B4%AB%E5%BE%AE%E6%83%85%E6%84%9F%E8%BF%90%E5%8A%BF%E8%A7%A3%E6%9E%90/id1356471277">功能和会员价格</a></span></div>
+        <div class="source-card"><strong>36氪</strong><span><a href="https://m.36kr.com/p/1722878033921">星座女神/准了早期商业化报道</a></span></div>
+        <div class="source-card"><strong>若道</strong><span><a href="https://www.nodoor.com/">官网</a>、<a href="https://www.nodoor.com/course/detail/11109">金融占星课程</a>、<a href="https://www.nodoor.com/ebook/detail/597">金融报告产品</a></span></div>
+        <div class="source-card"><strong>中国证监会</strong><span><a href="https://www.csrc.gov.cn/csrc/c101800/c7161954/content.shtml">关于利用天干地支、阴阳五行预测股市的监管答复</a></span></div>
+        <div class="source-card"><strong>深圳证监局</strong><span><a href="https://www.csrc.gov.cn/shenzhen/c105615/c7638512/content.shtml">关于警惕非法荐股骗局的风险提示</a></span></div>
+        <div class="source-card"><strong>行业观察</strong><span><a href="https://www.tmtpost.com/7661763.html">钛媒体：小红书玄学消费观察</a>、<a href="https://www.woshipm.com/share/6212823.html">人人都是产品经理：AI 塔罗内容变现观察</a></span></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

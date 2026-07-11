@@ -1,0 +1,263 @@
+{
+  "schema_version": "0.1",
+  "created_at": "2026-07-07",
+  "purpose": "External event tags for 2023-07 to 2026-06 industry trend-consistency backtests. These tags are for attribution and stress testing, not trading recommendations.",
+  "default_usage": {
+    "base_backtest": "keep all months",
+    "event_adjusted_backtest": "add event tags as explanatory variables",
+    "stress_exclusion_backtest": "optionally exclude high-severity event windows to test normal-regime robustness"
+  },
+  "events": [
+    {
+      "id": "evt_2023_08_stamp_duty_cut",
+      "date": "2023-08-28",
+      "start_month": "2023-08",
+      "end_month": "2023-09",
+      "type": "capital_market_policy",
+      "severity": "medium",
+      "title": "China halved stamp duty on stock transactions",
+      "summary": "Stamp duty on securities transactions was reduced from 0.1% to 0.05%, a direct market-confidence and turnover-support event.",
+      "affected_industries": ["非银金融", "银行", "综合", "计算机", "传媒"],
+      "expected_channel": ["market_beta", "brokerage_turnover", "risk_appetite"],
+      "backtest_handling": "tag_only",
+      "sources": [
+        "https://english.www.gov.cn/policies/policywatch/202308/28/content_WS64ec5513c6d0868f4e8dee23.html",
+        "https://en.people.cn/n3/2023/0828/c90000-20063991.html"
+      ]
+    },
+    {
+      "id": "evt_2023_10_israel_hamas_war",
+      "date": "2023-10-07",
+      "start_month": "2023-10",
+      "end_month": "2023-11",
+      "type": "geopolitical_war",
+      "severity": "high",
+      "title": "Israel-Hamas war began; Middle East risk premium rose",
+      "summary": "The conflict raised geopolitical risk and briefly lifted oil risk premium, affecting energy, defense, gold and shipping-related sectors.",
+      "affected_industries": ["石油石化", "国防军工", "交通运输", "有色金属", "煤炭"],
+      "expected_channel": ["oil_price", "safe_haven", "shipping_risk", "defense_risk_premium"],
+      "backtest_handling": "tag_only_and_lag_test",
+      "sources": [
+        "https://www.iea.org/reports/oil-market-report-october-2023",
+        "https://ideas.repec.org/p/ris/kietrp/2023_019.html"
+      ]
+    },
+    {
+      "id": "evt_2023_11_red_sea_shipping_attacks",
+      "date": "2023-11-19",
+      "start_month": "2023-11",
+      "end_month": "2024-03",
+      "type": "geopolitical_shipping",
+      "severity": "high",
+      "title": "Red Sea shipping crisis escalated",
+      "summary": "Houthi attacks on Red Sea shipping disrupted global shipping routes and affected oil, shipping, logistics and export-chain expectations.",
+      "affected_industries": ["交通运输", "石油石化", "煤炭", "基础化工", "汽车", "电子"],
+      "expected_channel": ["freight_rate", "oil_price", "supply_chain", "export_cost"],
+      "backtest_handling": "tag_only_and_lag_test",
+      "sources": [
+        "https://www.cfr.org/global-conflict-tracker/conflict/war-yemen",
+        "https://www.washingtoninstitute.org/policy-analysis/houthi-shipping-attacks-patterns-and-expectations-2025"
+      ]
+    },
+    {
+      "id": "evt_2024_02_central_huijin_etf_support",
+      "date": "2024-02-06",
+      "start_month": "2024-02",
+      "end_month": "2024-03",
+      "type": "liquidity_support",
+      "severity": "high",
+      "title": "Central Huijin expanded ETF holdings to stabilize A-shares",
+      "summary": "Central Huijin announced broader ETF holdings during A-share stress, creating a national-team support tag for broad beta and large-cap ETFs.",
+      "affected_industries": ["银行", "非银金融", "综合", "计算机", "电子", "传媒"],
+      "expected_channel": ["market_beta", "large_cap_support", "etf_flow"],
+      "backtest_handling": "tag_only",
+      "sources": [
+        "https://english.sse.com.cn/news/newsrelease/voice/c/c_20240206_10750598.shtml"
+      ]
+    },
+    {
+      "id": "evt_2024_04_new_national_nine",
+      "date": "2024-04-12",
+      "start_month": "2024-04",
+      "end_month": "2024-06",
+      "type": "capital_market_regulation",
+      "severity": "high",
+      "title": "State Council released new capital-market guideline",
+      "summary": "The new guideline emphasized stronger regulation, risk prevention and high-quality capital-market development. It may support high-dividend and quality factors while pressuring weak small-cap/speculative names.",
+      "affected_industries": ["银行", "非银金融", "综合", "计算机", "传媒"],
+      "expected_channel": ["quality_factor", "dividend_factor", "delisting_pressure", "risk_appetite"],
+      "backtest_handling": "tag_only_and_style_control",
+      "sources": [
+        "https://english.www.gov.cn/policies/policywatch/202404/13/content_WS6619d421c6d0868f4e8e6004.html",
+        "https://www.csrc.gov.cn/csrc/c100028/c7473584/content.shtml"
+      ]
+    },
+    {
+      "id": "evt_2024_04_iran_israel_direct_strike",
+      "date": "2024-04-13",
+      "start_month": "2024-04",
+      "end_month": "2024-04",
+      "type": "geopolitical_war",
+      "severity": "medium",
+      "title": "Iran launched direct strikes against Israel",
+      "summary": "The direct Iran-Israel strike raised short-term geopolitical risk, with possible impact on oil, gold, defense and transport risk premium.",
+      "affected_industries": ["石油石化", "国防军工", "有色金属", "交通运输"],
+      "expected_channel": ["oil_price", "safe_haven", "defense_risk_premium"],
+      "backtest_handling": "tag_only",
+      "sources": [
+        "https://en.wikipedia.org/wiki/April_2024_Iranian_strikes_on_Israel"
+      ]
+    },
+    {
+      "id": "evt_2024_05_property_support_package",
+      "date": "2024-05-17",
+      "start_month": "2024-05",
+      "end_month": "2024-07",
+      "type": "property_policy",
+      "severity": "high",
+      "title": "China cut minimum mortgage down payments and abolished mortgage floor rates",
+      "summary": "Policy package reduced down-payment ratios, abolished national mortgage-rate floors and supported property destocking, affecting real estate and property-chain sectors.",
+      "affected_industries": ["房地产", "建筑材料", "建筑装饰", "家用电器", "银行", "轻工制造"],
+      "expected_channel": ["property_sales_expectation", "credit", "durable_goods", "bank_asset_quality"],
+      "backtest_handling": "tag_only_and_lag_test",
+      "sources": [
+        "https://english.www.gov.cn/news/202405/17/content_WS66475a81c6d0868f4e8e73ac.html",
+        "https://en.people.cn/n3/2024/0518/c90000-20171307.html"
+      ]
+    },
+    {
+      "id": "evt_2024_09_fed_rate_cut",
+      "date": "2024-09-18",
+      "start_month": "2024-09",
+      "end_month": "2024-10",
+      "type": "global_liquidity",
+      "severity": "medium",
+      "title": "Federal Reserve began easing with a 50bp rate cut",
+      "summary": "The Fed lowered the target range by 50bp, affecting global liquidity, dollar pressure, gold and emerging-market risk appetite.",
+      "affected_industries": ["有色金属", "电子", "计算机", "非银金融", "银行"],
+      "expected_channel": ["usd", "global_liquidity", "gold", "growth_valuation"],
+      "backtest_handling": "tag_only",
+      "sources": [
+        "https://www.federalreserve.gov/newsevents/pressreleases/monetary20240918a.htm"
+      ]
+    },
+    {
+      "id": "evt_2024_09_china_stimulus_capital_market_tools",
+      "date": "2024-09-24",
+      "start_month": "2024-09",
+      "end_month": "2024-11",
+      "type": "monetary_and_market_policy",
+      "severity": "very_high",
+      "title": "China announced monetary, property and capital-market support tools",
+      "summary": "PBOC and regulators announced a policy package including stock-market liquidity tools such as a swap facility and buyback/stake-increase relending, alongside monetary and property support.",
+      "affected_industries": ["非银金融", "银行", "房地产", "建筑材料", "计算机", "电子", "传媒"],
+      "expected_channel": ["market_beta", "brokerage_turnover", "property_expectation", "liquidity"],
+      "backtest_handling": "tag_only_and_lag_test",
+      "sources": [
+        "https://english.www.gov.cn/news/202409/24/content_WS66f22d00c6d0868f4e8eb322.html",
+        "https://english.www.gov.cn/news/202409/25/content_WS66f3602ec6d0868f4e8eb3c0.html"
+      ]
+    },
+    {
+      "id": "evt_2025_01_deepseek_r1",
+      "date": "2025-01-20",
+      "start_month": "2025-01",
+      "end_month": "2025-02",
+      "type": "technology_shock",
+      "severity": "high",
+      "title": "DeepSeek-R1 release and global AI repricing",
+      "summary": "DeepSeek released R1 and open-source distilled models; subsequent market reaction repriced global AI compute expectations and supported China AI/software narratives while pressuring some global chip names.",
+      "affected_industries": ["计算机", "传媒", "通信", "电子", "半导体"],
+      "expected_channel": ["ai_theme", "software_repricing", "semiconductor_capex", "risk_appetite"],
+      "backtest_handling": "tag_only_and_lag_test",
+      "sources": [
+        "https://api-docs.deepseek.com/news/news250120",
+        "https://cyber.fsi.stanford.edu/publication/taking-stock-deepseek-shock"
+      ]
+    },
+    {
+      "id": "evt_2025_04_us_china_tariff_escalation",
+      "date": "2025-04-02",
+      "start_month": "2025-04",
+      "end_month": "2025-05",
+      "type": "trade_war",
+      "severity": "very_high",
+      "title": "US-China tariff escalation after reciprocal tariff announcement",
+      "summary": "US reciprocal tariffs and Chinese retaliation sharply raised trade-war uncertainty, affecting export chains, electronics, autos, consumer goods and broad risk appetite.",
+      "affected_industries": ["电子", "汽车", "家用电器", "纺织服饰", "轻工制造", "机械设备", "交通运输"],
+      "expected_channel": ["export_demand", "supply_chain", "risk_appetite", "fx"],
+      "backtest_handling": "tag_only_and_stress_exclusion_candidate",
+      "sources": [
+        "https://www.whitehouse.gov/presidential-actions/2025/04/regulating-imports-with-a-reciprocal-tariff-to-rectify-trade-practices-that-contribute-to-large-and-persistent-annual-united-states-goods-trade-deficits/",
+        "https://www.trade.gov/feature-article/foreign-retaliations-timeline",
+        "https://www.weforum.org/stories/2025/06/trumps-us-china-trade-tariffs-timeline/"
+      ]
+    },
+    {
+      "id": "evt_2025_04_rare_earth_export_controls",
+      "date": "2025-04-04",
+      "start_month": "2025-04",
+      "end_month": "2025-06",
+      "type": "export_control",
+      "severity": "high",
+      "title": "China implemented export controls on selected medium and heavy rare-earth items",
+      "summary": "MOFCOM and Customs announced controls on some medium/heavy rare-earth related items, affecting rare earths, magnets, EV, defense and semiconductor supply chains.",
+      "affected_industries": ["有色金属", "国防军工", "汽车", "电力设备", "电子", "半导体"],
+      "expected_channel": ["critical_minerals", "supply_chain", "pricing_power", "trade_war"],
+      "backtest_handling": "tag_only_and_lag_test",
+      "sources": [
+        "https://english.mofcom.gov.cn/Policies/AnnouncementsOrders/art/2025/art_0dd87cbee7b045bf93fabe6ab2faceee.html"
+      ]
+    },
+    {
+      "id": "evt_2025_04_national_team_etf_buying_tariff_response",
+      "date": "2025-04-07",
+      "start_month": "2025-04",
+      "end_month": "2025-04",
+      "type": "liquidity_support",
+      "severity": "medium",
+      "title": "Central Huijin ETF buying after tariff shock",
+      "summary": "Central Huijin and other state-related entities bought ETFs during tariff-driven stress, creating a broad market-stabilization tag.",
+      "affected_industries": ["银行", "非银金融", "综合", "电子", "计算机"],
+      "expected_channel": ["market_beta", "etf_flow", "state_support"],
+      "backtest_handling": "tag_only",
+      "sources": [
+        "https://www.scmp.com/business/china-business/article/3305494/central-huijin-unit-chinas-us12-trillion-wealth-fund-buys-etfs-boost-stocks"
+      ]
+    },
+    {
+      "id": "evt_2025_10_rare_earth_controls_wave_2",
+      "date": "2025-10-09",
+      "start_month": "2025-10",
+      "end_month": "2025-11",
+      "type": "export_control",
+      "severity": "medium",
+      "title": "Rare-earth controls expanded toward broader chip and advanced manufacturing supply chains",
+      "summary": "A later wave of rare-earth-related restrictions affected semiconductors, AI devices/components and advanced manufacturing supply-chain expectations.",
+      "affected_industries": ["有色金属", "电子", "半导体", "国防军工", "汽车", "电力设备"],
+      "expected_channel": ["critical_minerals", "semiconductor_supply_chain", "trade_war"],
+      "backtest_handling": "tag_only",
+      "sources": [
+        "https://cset.georgetown.edu/publication/mofcom-notice-2025-61/",
+        "https://www.europarl.europa.eu/RegData/etudes/ATAG/2025/779220/EPRS_ATA%282025%29779220_EN.pdf"
+      ]
+    },
+    {
+      "id": "evt_2026_06_hormuz_oil_shock",
+      "date": "2026-06-01",
+      "start_month": "2026-06",
+      "end_month": "2026-06",
+      "type": "geopolitical_oil",
+      "severity": "high",
+      "title": "US-Iran/Hormuz oil-market disruption",
+      "summary": "Oil-market reports in June-July 2026 cited Strait of Hormuz disruption, tanker-flow normalization and a sharp swing in crude risk premium.",
+      "affected_industries": ["石油石化", "煤炭", "交通运输", "基础化工", "国防军工", "有色金属"],
+      "expected_channel": ["oil_price", "freight_rate", "inflation", "safe_haven"],
+      "backtest_handling": "tag_only_and_stress_exclusion_candidate",
+      "sources": [
+        "https://www.aljazeera.com/economy/2026/6/29/oil-prices-rise-as-us-iranian-strikes-threaten-strait-of-hormuz-reopening",
+        "https://www.marketwatch.com/story/oil-prices-are-now-back-to-prewar-levels-but-the-market-is-not-heres-what-could-happen-next-c2883aa7"
+      ]
+    }
+  ]
+}

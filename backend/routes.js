@@ -4,7 +4,12 @@ const { getBaZi, countFiveElements, checkRelationship, getRecommendedIndustries,
 const { getStockQuote, fetchQuote, getStockTrend } = require('./market');
 const { getProviderStatus } = require('./historicalDataProvider');
 const { loadKnowledgeBase, searchKnowledgeBase } = require('./knowledgeBase');
-const { callLLM } = require('./llm');
+const { callLLMWithMeta } = require('./llm');
+const {
+  extractAssistantStockQuery,
+  parseAssistantTemporalIntent,
+  summarizeAssistantTrend
+} = require('./assistantContext');
 const {
   buildIntegratedStockAnalysis,
   normalizeStockQuery,
@@ -335,14 +340,19 @@ function buildAssistantPrompt(message, history, kbItems, context) {
     '你是“五行投资日报”项目内置 AI 助手，模型由 caolele 兼容接口提供。',
     '你的任务：基于项目日报、知识库、关注标的和用户对话，帮助用户解释日报、复盘模型、查询项目知识、生成观察清单。',
     '约束：不要编造实时行情；涉及个股时提醒这是观察和复盘，不构成买卖建议；遇到数据缺失要明确说缺失；不要输出 token、key、webhook、私有 Base 链接。',
+    '时间解释：如果 temporal_intent 已给出，必须严格按该解释回答；month_range 表示月份区间，不能改写成某月某日。未来月份只能给条件式观察计划，不能伪造未来价格或资金流。',
+    '个股回答：如果 stock_analysis 已给出，必须优先使用其中的实时行情、规则评分、估值、资金和趋势信息，不能再声称这些已提供的字段缺失。把已观测数据与未来验证条件分开表达。',
+    '个股合规：即使用户问建仓、买入或卖出，也只能转换成观察池的升级条件、降级条件和复核清单；不要输出“建议建仓、低吸、加仓、小仓试探、买入、卖出”等替用户决策的动作。',
+    '口径边界：stock_analysis 中的五行、技术和资金评分是当前快照，不能外推成整个月或整个季度的确定结论；valuation 中的价格线是估值参考线，不是技术支撑位、目标价或某个月必然到达的价格。',
+    '月份计划：没有逐月冻结数据时，不要给7月、8月、9月分别安排必然发生的价位或行情；应按“当前状态、升级条件、降级条件、每月复核点”给出条件式方案。',
     '如果用户问页面上看到的数字，优先使用 visible_report_summary 和 key_variables 中的原始字段、单位和解释；不要把“%”口径的量能/换手率误解成“亿”口径的资金流。',
-    '回答风格：中文，短而具体，优先给结论和可执行下一步。',
+    '回答风格：中文，短而具体，优先给结论和可执行下一步。回答必须完整收尾，不要留下只有标题没有正文的段落。',
     '',
     '【最近对话】',
     dialogue || '无',
     '',
     '【项目上下文】',
-    compactJson(context, 5200),
+    compactJson(context, 9000),
     '',
     '【知识库命中】',
     kbText || '无命中知识条目',
@@ -350,6 +360,106 @@ function buildAssistantPrompt(message, history, kbItems, context) {
     '【用户问题】',
     message
   ].join('\n');
+}
+
+async function buildStockAnalysisResponse(q, date) {
+  const quote = await getStockQuote(normalizeStockQuery(q));
+  const industryProfile = await resolveStockIndustryWithCache(quote, q);
+  const analysis = buildIntegratedStockAnalysis(quote, q, { date, industryProfile });
+  const resolvedIndustry = industryProfile?.industry || analysis?.factors?.mystic?.industry || null;
+  const valuation = analysis?.valuation || analysis?.factors?.value_points || null;
+  return {
+    name: quote.name,
+    code: quote.code,
+    industry: resolvedIndustry,
+    industry_name: resolvedIndustry,
+    industry_info: industryProfile || null,
+    price: quote.last,
+    change: quote.change,
+    changePercent: quote.changePercent,
+    pe: quote.pe,
+    pb: quote.pb,
+    netInflow: quote.netInflow,
+    valuation,
+    analysis_source: 'stock_integrated_rule_engine_v1',
+    llm_enabled: false,
+    data_sources: {
+      realtime: 'Tencent quote API',
+      valuation: 'Tencent quote PE_TTM/PB; Eastmoney Miaoxiang fallback when available',
+      industry: industryProfile.source || 'stock industry cache / project map / Eastmoney industry field',
+      flow: 'Eastmoney Miaoxiang main-force flow',
+      analysis: '规则引擎融合行业五行先验、PE_TTM/PB估值、涨跌幅和主力资金，未调用大模型'
+    },
+    analysis
+  };
+}
+
+async function enrichAssistantContext(message, baseContext) {
+  const temporalIntent = parseAssistantTemporalIntent(message);
+  const stockQuery = extractAssistantStockQuery(message, baseContext.watchlist);
+  let stockAnalysis = null;
+  let stockTrend = null;
+  if (stockQuery) {
+    try {
+      const stock = await buildStockAnalysisResponse(stockQuery);
+      stockAnalysis = {
+        query: stockQuery,
+        name: stock.name,
+        code: stock.code,
+        industry: stock.industry,
+        quote: {
+          price: stock.price,
+          change: stock.change,
+          change_percent: stock.changePercent,
+          pe_ttm: stock.pe,
+          pb: stock.pb,
+          main_force_net_inflow: stock.netInflow
+        },
+        decision: stock.analysis?.decision || null,
+        factors: stock.analysis?.factors || null,
+        valuation: stock.valuation,
+        caveats: stock.analysis?.caveats || []
+      };
+      const trend = await getStockTrend(stock.code, 90);
+      stockTrend = summarizeAssistantTrend(trend);
+    } catch (error) {
+      stockAnalysis = {
+        query: stockQuery,
+        available: false,
+        error: '个股数据暂时无法获取'
+      };
+    }
+  }
+  return {
+    temporal_intent: temporalIntent,
+    stock_analysis: stockAnalysis,
+    stock_trend: stockTrend,
+    ...baseContext
+  };
+}
+
+async function completeAssistantAnswer(prompt) {
+  const first = await callLLMWithMeta(prompt, { maxTokens: 1600 });
+  let answer = first.content.trim();
+  let finishReason = first.finishReason;
+  let continued = false;
+  if (finishReason === 'length') {
+    const continuationPrompt = [
+      '请续写并完成下面这段被截断的中文回答。',
+      '要求：从断点直接继续，不重复已有内容；补齐未完成的段落并给出完整收尾；保持原有合规边界。',
+      '',
+      '【原问题与上下文】',
+      truncateText(prompt, 5000),
+      '',
+      '【已生成内容】',
+      answer
+    ].join('\n');
+    const continuation = await callLLMWithMeta(continuationPrompt, { maxTokens: 1000, temperature: 0.4 });
+    answer = [answer, continuation.content.trim()].filter(Boolean).join('\n');
+    finishReason = continuation.finishReason;
+    continued = true;
+  }
+  return { answer, finishReason, continued };
 }
 
 function normalizeArray(value) {
@@ -502,21 +612,31 @@ router.post('/assistant/chat', async (req, res) => {
   const fallbackKb = kbResult.items && kbResult.items.length > 0
     ? kbResult
     : searchKnowledgeBase({ usable_for: 'ai_chat', status: 'active', limit: 8 });
-  const context = getLatestAssistantContext({
+  const baseContext = getLatestAssistantContext({
     report_type: req.body?.report_type,
     report_date: req.body?.report_date,
     presentation_mode: req.body?.presentation_mode
   });
+  const context = await enrichAssistantContext(message, baseContext);
   const prompt = buildAssistantPrompt(message, history, fallbackKb.items || [], context);
 
   try {
-    const answer = await callLLM(prompt);
+    const completion = await completeAssistantAnswer(prompt);
     res.json({
-      answer,
+      answer: completion.answer,
       model: 'caolele',
-      analysis_source: 'project_knowledge_assistant_v1',
+      analysis_source: 'project_knowledge_assistant_v2',
+      completion: {
+        finish_reason: completion.finishReason,
+        continued_after_length: completion.continued
+      },
       data_sources: {
         latest_report: context.latest_report ? `${context.latest_report.report_date}/${context.latest_report.report_type}` : null,
+        stock: context.stock_analysis?.available === false ? null : context.stock_analysis
+          ? `${context.stock_analysis.name}/${context.stock_analysis.code}`
+          : null,
+        stock_trend: context.stock_trend?.source || null,
+        temporal_intent: context.temporal_intent?.interpretation || null,
         knowledge_base_items: (fallbackKb.items || []).map(item => ({
           id: item.id,
           title: item.title,
@@ -947,39 +1067,7 @@ router.get('/stock/analyze', async (req, res) => {
   if (!q) return res.status(400).json({ error: '缺少查询参数 q' });
 
   try {
-    // 1. 获取实时行情
-    const quote = await getStockQuote(normalizeStockQuery(q));
-    const industryProfile = await resolveStockIndustryWithCache(quote, q);
-
-    // 2. 生成融合四维分析：行业五行先验 + 价投估值 + 量价资金确认
-    const analysis = buildIntegratedStockAnalysis(quote, q, { date: req.query.date, industryProfile });
-    const resolvedIndustry = industryProfile?.industry || analysis?.factors?.mystic?.industry || null;
-    const valuation = analysis?.valuation || analysis?.factors?.value_points || null;
-
-    res.json({
-      name: quote.name,
-      code: quote.code,
-      industry: resolvedIndustry,
-      industry_name: resolvedIndustry,
-      industry_info: industryProfile || null,
-      price: quote.last,
-      change: quote.change,
-      changePercent: quote.changePercent,
-      pe: quote.pe,
-      pb: quote.pb,
-      netInflow: quote.netInflow,
-      valuation,
-      analysis_source: 'stock_integrated_rule_engine_v1',
-      llm_enabled: false,
-      data_sources: {
-        realtime: 'Tencent quote API',
-        valuation: 'Tencent quote PE_TTM/PB; Eastmoney Miaoxiang fallback when available',
-        industry: industryProfile.source || 'stock industry cache / project map / Eastmoney industry field',
-        flow: 'Eastmoney Miaoxiang main-force flow',
-        analysis: '规则引擎融合行业五行先验、PE_TTM/PB估值、涨跌幅和主力资金，未调用大模型'
-      },
-      analysis
-    });
+    res.json(await buildStockAnalysisResponse(q, req.query.date));
   } catch (err) {
     console.error('个股分析失败:', err);
     res.status(500).json({ error: '分析失败', message: err.message });
@@ -990,7 +1078,9 @@ router.get('/stock/trend', async (req, res) => {
   const q = (req.query.q || '').trim();
   if (!q) return res.status(400).json({ error: '缺少查询参数 q' });
   try {
-    const result = await getStockTrend(q, req.query.days || 30);
+    const quote = await getStockQuote(normalizeStockQuery(q));
+    const result = await getStockTrend(quote.code, req.query.days || 30);
+    if (!result.name || result.name === result.code) result.name = quote.name;
     res.json(result);
   } catch (err) {
     console.error('个股趋势获取失败:', err);

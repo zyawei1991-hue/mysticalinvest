@@ -29,7 +29,11 @@ const INDUSTRY_PROXY_MAP = {
   '银行': { symbol: '512800.SH', eastmoneySecid: '1.512800', name: '银行ETF', type: 'fund' },
   '非银金融': { symbol: '512880.SH', eastmoneySecid: '1.512880', name: '证券ETF', type: 'fund', proxy: true },
   '环保': { symbol: '512580.SH', eastmoneySecid: '1.512580', name: '环保ETF', type: 'fund' },
-  '综合': { symbol: '510300.SH', eastmoneySecid: '1.510300', name: '沪深300ETF', type: 'fund', proxy: true }
+  '综合': { symbol: '510300.SH', eastmoneySecid: '1.510300', name: '沪深300ETF', type: 'fund', proxy: true },
+  '半导体': { symbol: '512480.SH', eastmoneySecid: '1.512480', name: '半导体ETF', type: 'fund', proxy: true },
+  '白酒': { symbol: '512690.SH', eastmoneySecid: '1.512690', name: '酒ETF', type: 'fund', proxy: true },
+  '新能源': { symbol: '516160.SH', eastmoneySecid: '1.516160', name: '新能源ETF', type: 'fund', proxy: true },
+  '创新药': { symbol: '159992.SZ', eastmoneySecid: '0.159992', name: '创新药ETF', type: 'fund', proxy: true }
 };
 
 const BENCHMARKS = {

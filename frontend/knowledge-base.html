@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>五行投资日报知识库</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #eef2f5;
+      --surface: #ffffff;
+      --muted: #f7f9fb;
+      --border: #d9e2ec;
+      --text: #172033;
+      --subtext: #64748b;
+      --blue: #2563eb;
+      --green: #16a34a;
+      --amber: #d97706;
+      --red: #dc2626;
+    }
+    body {
+      min-width: 320px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.55;
+      letter-spacing: 0;
+    }
+    .page { width: min(1240px, 100%); margin: 0 auto; padding: 18px; }
+    .topbar, .panel, .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+    }
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: end;
+      padding: 18px 20px;
+      margin-bottom: 14px;
+    }
+    h1 { font-size: 24px; line-height: 1.2; font-weight: 760; }
+    .subtitle { color: var(--subtext); font-size: 13px; margin-top: 8px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .control { display: inline-flex; align-items: center; gap: 8px; color: var(--subtext); font-size: 13px; white-space: nowrap; }
+    input, select {
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      padding: 0 10px;
+      font-size: 14px;
+    }
+    input { width: 220px; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .metric {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      min-width: 0;
+    }
+    .metric .label { color: var(--subtext); font-size: 12px; margin-bottom: 4px; }
+    .metric .value { font-size: 24px; font-weight: 760; }
+    .layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .panel { padding: 16px; }
+    .panel h2 { font-size: 16px; margin-bottom: 10px; }
+    .domain-list { display: grid; gap: 8px; }
+    .domain-button {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      padding: 9px 10px;
+      text-align: left;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .domain-button.active { border-color: var(--blue); color: var(--blue); background: #eff6ff; }
+    .cards { display: grid; gap: 12px; }
+    .card { padding: 16px; }
+    .card-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .card h3 { font-size: 17px; line-height: 1.3; }
+    .summary { color: var(--text); font-size: 14px; margin-bottom: 10px; }
+    .section { border-top: 1px solid #edf1f5; padding-top: 10px; margin-top: 10px; }
+    .section strong { display: block; font-size: 13px; margin-bottom: 4px; }
+    .section p { color: var(--subtext); font-size: 13px; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      font-size: 12px;
+      color: var(--subtext);
+      background: #fff;
+    }
+    .tag.active { color: #166534; border-color: #bbf7d0; background: #f0fdf4; }
+    .tag.draft { color: #92400e; border-color: #fed7aa; background: #fffbeb; }
+    .tag.deprecated { color: #991b1b; border-color: #fecaca; background: #fff1f2; }
+    .path { color: var(--subtext); font-size: 12px; overflow-wrap: anywhere; margin-top: 8px; }
+    .empty { color: var(--subtext); padding: 18px; text-align: center; }
+    @media (max-width: 900px) {
+      .topbar, .layout { grid-template-columns: 1fr; }
+      .actions { justify-content: flex-start; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .page { padding: 10px; }
+      .topbar, .panel, .card { padding: 14px; }
+      h1 { font-size: 20px; }
+      .metrics { grid-template-columns: 1fr; }
+      .control { width: 100%; justify-content: space-between; }
+      input, select { min-width: 0; flex: 1; width: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div>
+        <h1>五行投资日报知识库</h1>
+        <p class="subtitle">结构化 Markdown 源文件生成，可供日报程序、前端页面和未来 AI 对话共同调用。</p>
+      </div>
+      <div class="actions">
+        <label class="control">搜索
+          <input id="searchInput" type="search" placeholder="月运、合规、ETF、回测">
+        </label>
+        <label class="control">用途
+          <select id="useSelect">
+            <option value="">全部用途</option>
+            <option value="daily_report">日报</option>
+            <option value="ai_chat">AI 对话</option>
+            <option value="backtest">回测</option>
+            <option value="algorithm_explain">算法解释</option>
+            <option value="marketing">商业/运营</option>
+          </select>
+        </label>
+        <label class="control">状态
+          <select id="statusSelect">
+            <option value="">全部状态</option>
+            <option value="active">active</option>
+            <option value="draft">draft</option>
+            <option value="deprecated">deprecated</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <section class="metrics" id="metrics"></section>
+
+    <div class="layout">
+      <aside class="panel">
+        <h2>知识域</h2>
+        <div class="domain-list" id="domainList"></div>
+      </aside>
+      <main class="cards" id="cards"></main>
+    </div>
+  </div>
+
+  <script>
+    const DATA_URL = 'knowledge-base-data.json?v=' + Date.now();
+    let kb = null;
+    let selectedDomain = '';
+
+    const searchInput = document.getElementById('searchInput');
+    const useSelect = document.getElementById('useSelect');
+    const statusSelect = document.getElementById('statusSelect');
+    const metricsEl = document.getElementById('metrics');
+    const domainList = document.getElementById('domainList');
+    const cards = document.getElementById('cards');
+
+    fetch(DATA_URL, { cache: 'no-store' })
+      .then(res => {
+        if (!res.ok) throw new Error('知识库数据加载失败');
+        return res.json();
+      })
+      .then(data => {
+        kb = data;
+        renderAll();
+      })
+      .catch(error => {
+        cards.innerHTML = '<div class="card"><h3>加载失败</h3><p class="summary">' + escapeHtml(error.message) + '</p></div>';
+      });
+
+    [searchInput, useSelect, statusSelect].forEach(el => el.addEventListener('input', renderAll));
+
+    function renderAll() {
+      if (!kb) return;
+      renderMetrics();
+      renderDomains();
+      renderCards();
+    }
+
+    function filteredItems() {
+      const q = searchInput.value.trim().toLowerCase();
+      const use = useSelect.value;
+      const status = statusSelect.value;
+      return (kb.items || []).filter(item => {
+        if (selectedDomain && item.domain !== selectedDomain) return false;
+        if (use && !(item.usable_for || []).includes(use)) return false;
+        if (status && item.status !== status) return false;
+        if (q) {
+          const haystack = [
+            item.id, item.title, item.summary, item.daily_use, item.forbidden_use, item.content,
+            ...(item.tags || [])
+          ].join(' ').toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        return true;
+      });
+    }
+
+    function renderMetrics() {
+      const items = kb.items || [];
+      const active = items.filter(item => item.status === 'active').length;
+      const draft = items.filter(item => item.status === 'draft').length;
+      const domains = Object.keys(kb.domains || {}).length;
+      const matched = filteredItems().length;
+      const metrics = [
+        ['知识卡片', kb.itemCount || items.length],
+        ['知识域', domains],
+        ['active', active],
+        ['draft', draft],
+        ['当前筛选', matched]
+      ];
+      metricsEl.innerHTML = metrics.map(item => (
+        '<div class="metric"><div class="label">' + item[0] + '</div><div class="value">' + item[1] + '</div></div>'
+      )).join('');
+    }
+
+    function renderDomains() {
+      const domains = Object.keys(kb.domains || {}).sort();
+      const buttons = [{ id: '', label: '全部', count: kb.itemCount || 0 }].concat(
+        domains.map(id => ({ id, label: domainName(id), count: kb.domains[id].count }))
+      );
+      domainList.innerHTML = buttons.map(item => (
+        '<button class="domain-button ' + (selectedDomain === item.id ? 'active' : '') + '" data-domain="' + escapeHtml(item.id) + '">' +
+        escapeHtml(item.label) + ' · ' + item.count +
+        '</button>'
+      )).join('');
+      domainList.querySelectorAll('button[data-domain]').forEach(button => {
+        button.addEventListener('click', () => {
+          selectedDomain = button.dataset.domain;
+          renderAll();
+        });
+      });
+    }
+
+    function renderCards() {
+      const items = filteredItems();
+      if (!items.length) {
+        cards.innerHTML = '<div class="card empty">当前筛选没有知识卡片</div>';
+        return;
+      }
+      cards.innerHTML = items.map(item => (
+        '<article class="card">' +
+          '<div class="card-head">' +
+            '<h3>' + escapeHtml(item.title) + '</h3>' +
+            '<span class="tag">' + escapeHtml(domainName(item.domain)) + '</span>' +
+            '<span class="tag ' + escapeHtml(item.status) + '">' + escapeHtml(item.status) + '</span>' +
+            '<span class="tag">' + escapeHtml(item.confidence) + '</span>' +
+          '</div>' +
+          '<p class="summary">' + escapeHtml(item.summary || item.content_preview || '') + '</p>' +
+          sectionHtml('用在日报里', item.daily_use) +
+          sectionHtml('禁止用法', item.forbidden_use) +
+          '<div class="tag-row">' + (item.tags || []).map(tag => '<span class="tag">' + escapeHtml(tag) + '</span>').join('') + '</div>' +
+          '<div class="path">' + escapeHtml(item.path) + ' · ' + escapeHtml(item.id) + '</div>' +
+        '</article>'
+      )).join('');
+    }
+
+    function sectionHtml(title, content) {
+      if (!content) return '';
+      return '<div class="section"><strong>' + escapeHtml(title) + '</strong><p>' + escapeHtml(content) + '</p></div>';
+    }
+
+    function domainName(domain) {
+      const names = {
+        system: '系统',
+        dongxuan: '东玄',
+        market: '市场映射',
+        strategy: '策略算法',
+        output: '输出规范',
+        compliance: '合规边界',
+        case: '案例复盘'
+      };
+      return names[domain] || domain;
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

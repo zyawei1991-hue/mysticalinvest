@@ -74,6 +74,7 @@ function shouldSkipAutomaticNoonOverwrite(now, reportType) {
 // 配置。FEISHU_WEBHOOK_ENABLED=1 时由本脚本使用群 webhook 推送；否则计划任务可回退到应用身份推送。
 const WEBHOOK_URL = NO_PUSH ? '' : (firstPositionalArg() || (process.env.FEISHU_WEBHOOK_ENABLED === '1' ? process.env.FEISHU_WEBHOOK : '') || '');
 const SITE_URL = process.env.DAILY_SITE_URL || 'http://117.72.58.55/daily/';
+const { keyPlatformChanges, shouldPushDailySummary } = require('../backend/notificationPolicy');
 
 // 行业五行颜色
 const elementNames = {
@@ -861,14 +862,20 @@ async function main() {
   try {
     const result = await createReport(data);
     console.log('创建日报结果:', result);
-    
-    if (WEBHOOK_URL) {
+    const keyChanges = keyPlatformChanges(result.platform_changes);
+    const forcePush = process.env.FEISHU_PUSH_UNCHANGED === '1';
+    const shouldPush = shouldPushDailySummary(reportType, keyChanges, forcePush);
+    data.platform_changes = keyChanges;
+
+    if (WEBHOOK_URL && shouldPush) {
       console.log('推送飞书群...');
       const pushResult = await pushToFeishu(data, WEBHOOK_URL, SITE_URL);
       console.log('推送结果:', pushResult);
       console.log('完成！');
-    } else {
+    } else if (!WEBHOOK_URL) {
       console.log('未配置飞书Webhook，跳过推送');
+    } else {
+      console.log('No key state change; report retained locally without a Feishu notification.');
     }
   } catch (e) {
     console.error('错误:', e);

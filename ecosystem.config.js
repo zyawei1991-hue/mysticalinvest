@@ -29,6 +29,8 @@ for (const key of [
   'LLM_API_KEY',
   'LLM_MODEL',
   'FEISHU_WEBHOOK_ENABLED',
+  'FEISHU_VALIDATION_REPORT_ENABLED',
+  'FEISHU_PUSH_UNCHANGED',
   'FEISHU_WEBHOOK',
   'FEISHU_APP_ID',
   'FEISHU_APP_SECRET',
@@ -39,11 +41,33 @@ for (const key of [
 }
 
 module.exports = {
-  apps: [{
-    name: 'daily-report',
-    script: './backend/server.js',
-    interpreter: 'C:/tools/node-v18.20.8-win-x64/node.exe',
-    cwd: 'C:/www/daily-report',
-    env
-  }]
+  apps: [
+    {
+      name: 'daily-report',
+      script: './backend/server.js',
+      interpreter: 'C:/tools/node-v18.20.8-win-x64/node.exe',
+      cwd: 'C:/www/daily-report',
+      env
+    },
+    {
+      name: 'daily-report-weekly-validation',
+      script: './bin/generate-validation-report.js',
+      args: 'week --scheduled',
+      interpreter: 'C:/tools/node-v18.20.8-win-x64/node.exe',
+      cwd: 'C:/www/daily-report',
+      autorestart: false,
+      cron_restart: '10 18 * * 5',
+      env
+    },
+    {
+      name: 'daily-report-monthly-validation',
+      script: './bin/generate-validation-report.js',
+      args: 'month --scheduled',
+      interpreter: 'C:/tools/node-v18.20.8-win-x64/node.exe',
+      cwd: 'C:/www/daily-report',
+      autorestart: false,
+      cron_restart: '20 18 28-31 * *',
+      env
+    }
+  ]
 };

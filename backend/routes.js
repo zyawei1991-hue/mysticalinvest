@@ -15,6 +15,20 @@ const {
   normalizeStockQuery,
   resolveStockIndustryWithCache
 } = require('./stockInsightFramework');
+const {
+  calculateMarketSnapshot,
+  classifyObjectType,
+  genericObservationState,
+  upsertObservationItem,
+  persistState,
+  syncReportState,
+  listObservations,
+  observationDetail,
+  calculateDueValidations,
+  buildFactorAttribution,
+  buildValidationReport,
+  overview: buildPlatformOverview
+} = require('./platformState');
 
 const router = express.Router();
 
@@ -273,7 +287,7 @@ function buildAssistantPageSummary(latestReport) {
 function getLatestAssistantContext(options = {}) {
   const reportType = String(options.report_type || '').trim();
   const reportDate = String(options.report_date || '').trim();
-  const selectFields = `report_date, report_type, hs300_change, sh_change, sz_change, cy_change,
+  const selectFields = `id, report_date, report_type, hs300_change, sh_change, sz_change, cy_change,
     card_summary, industries_json, operation_advice_json, key_variables_json,
     market_momentum_json, market_breadth_json, risk_warning`;
   let report = null;
@@ -292,6 +306,7 @@ function getLatestAssistantContext(options = {}) {
     risk_scenario FROM decision_logs ORDER BY report_date DESC, updated_at DESC LIMIT 5`);
   const watchlist = all('SELECT name, code, alert_level FROM watchlist ORDER BY created_at DESC LIMIT 20');
   const latestReport = report ? {
+    id: report.id,
     report_date: report.report_date,
     report_type: report.report_type,
     hs300_change: report.hs300_change,
@@ -306,6 +321,32 @@ function getLatestAssistantContext(options = {}) {
     market_breadth: parseJsonMaybe(report.market_breadth_json),
     risk_warning: report.risk_warning
   } : null;
+  const platformObservations = report?.id
+    ? listObservations({ report_id: report.id }).slice(0, 15).map(item => ({
+        id: item.id,
+        name: item.name,
+        code: item.code,
+        object_type: item.object_type,
+        state: item.state,
+        score: item.score,
+        confidence: item.confidence,
+        risk_level: item.risk_level,
+        completeness: item.completeness,
+        primary_driver: item.primary_driver,
+        primary_risk: item.primary_risk,
+        upgrade_condition: item.upgrade_condition,
+        downgrade_condition: item.downgrade_condition,
+        source_meta: item.source_meta
+      }))
+    : [];
+  const platformTransitions = all(`SELECT t.transition_type, t.from_state, t.to_state, t.reason,
+      t.occurred_at, i.name, i.object_type
+    FROM state_transitions t JOIN observation_items i ON i.id = t.observation_item_id
+    ORDER BY t.occurred_at DESC, t.id DESC LIMIT 12`);
+  const platformValidations = all(`SELECT v.horizon_days, v.due_date, v.condition_text, v.status,
+      i.name, i.object_type
+    FROM validation_tasks v JOIN observation_items i ON i.id = v.observation_item_id
+    WHERE v.status = 'pending' ORDER BY v.due_date, v.horizon_days LIMIT 12`);
   return {
     requested_page: {
       report_date: reportDate || null,
@@ -318,7 +359,14 @@ function getLatestAssistantContext(options = {}) {
       ...item,
       recommended_industries: parseJsonMaybe(item.recommended_industries_json)
     })),
-    watchlist
+    watchlist,
+    platform: {
+      observations: platformObservations,
+      recent_transitions: platformTransitions,
+      pending_validations: platformValidations,
+      state_model_version: 'observation-state-v1',
+      boundary: '评分只用于排序；状态由金融确认、数据完整度和风险门控共同决定。'
+    }
   };
 }
 
@@ -584,6 +632,167 @@ router.get('/stats', (req, res) => {
   res.json({ total_reports: totalRow ? totalRow.total : 0 });
 });
 
+router.get('/platform/overview', (req, res) => {
+  const payload = buildPlatformOverview(req.query.type);
+  if (!payload) return res.status(404).json({ error: '暂无可用于状态计算的日报' });
+  res.json(payload);
+});
+
+router.get('/platform/observations', (req, res) => {
+  syncReportState({ report_type: req.query.report_type });
+  res.json({
+    data: listObservations({
+      type: req.query.type,
+      state: req.query.state,
+      risk: req.query.risk
+    })
+  });
+});
+
+router.post('/platform/observations', async (req, res) => {
+  const name = String(req.body?.name || req.body?.code || '').trim();
+  const requestedCode = String(req.body?.code || '').trim();
+  if (!name) return res.status(400).json({ error: '缺少标的名称或代码' });
+  const requestedType = req.body?.object_type;
+  if (requestedType && !['industry', 'etf', 'stock'].includes(requestedType)) {
+    return res.status(400).json({ error: 'object_type 必须是 industry/etf/stock' });
+  }
+  let resolved = null;
+  const inferredType = classifyObjectType(name, requestedCode, requestedType);
+  if (inferredType !== 'industry') resolved = await resolveAndCacheStockIndustryFromInput(name, requestedCode);
+  const finalName = resolved?.quote?.name || name;
+  const finalCode = stripMarketPrefix(resolved?.quote?.code || requestedCode);
+  const item = upsertObservationItem({
+    name: finalName,
+    code: finalCode,
+    object_type: classifyObjectType(finalName, finalCode, requestedType),
+    source: 'user'
+  });
+  if (item.object_type !== 'industry') {
+    const exists = get('SELECT id FROM watchlist WHERE name = ?', [finalName]);
+    if (!exists) run('INSERT INTO watchlist (name, code, alert_level) VALUES (?, ?, ?)', [finalName, finalCode || null, null]);
+  }
+  const synced = syncReportState({ report_type: req.body?.report_type });
+  if (!synced) return res.status(409).json({ error: '暂无日报，无法生成初始状态' });
+  const state = persistState(item, genericObservationState(item, synced.market), synced.report);
+  res.status(201).json({ success: true, item, state });
+});
+
+router.get('/platform/observations/:id', (req, res) => {
+  const payload = observationDetail(req.params.id);
+  if (!payload) return res.status(404).json({ error: '观察标的不存在' });
+  res.json(payload);
+});
+
+router.delete('/platform/observations/:id', (req, res) => {
+  const item = get('SELECT * FROM observation_items WHERE id = ?', [req.params.id]);
+  if (!item) return res.status(404).json({ error: '观察标的不存在' });
+  run("UPDATE observation_items SET active = 0, updated_at = datetime('now') WHERE id = ?", [item.id]);
+  res.json({ success: true });
+});
+
+router.get('/platform/validations', (req, res) => {
+  const status = String(req.query.status || '').trim();
+  const params = [];
+  const where = status ? 'WHERE v.status = ?' : '';
+  if (status) params.push(status);
+  const rows = all(`SELECT v.*, i.name, i.code, i.object_type, s.state, s.report_date, s.report_type,
+      r.verdict, r.absolute_return, r.benchmark_excess, r.relative_excess, r.calculated_at
+    FROM validation_tasks v
+    JOIN observation_items i ON i.id = v.observation_item_id
+    JOIN observation_states s ON s.id = v.observation_state_id
+    LEFT JOIN validation_results r ON r.validation_task_id = v.id
+    ${where}
+    ORDER BY CASE v.status WHEN 'pending' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
+      v.due_date, v.horizon_days`, params);
+  res.json({ data: rows });
+});
+
+router.post('/platform/validations/run', (req, res) => {
+  res.json(calculateDueValidations());
+});
+
+router.get('/platform/validation-attribution', (req, res) => {
+  const runId = req.query.run_id ? Number(req.query.run_id) : null;
+  const horizon = Math.max(1, Math.min(20, Number(req.query.horizon) || 5));
+  res.json(buildFactorAttribution(runId, horizon));
+});
+
+router.get('/platform/validation-reports', (req, res) => {
+  const type = req.query.type;
+  const params = [];
+  const where = type ? 'WHERE period_type = ?' : '';
+  if (type) params.push(type);
+  const rows = all(`SELECT * FROM validation_reports ${where} ORDER BY generated_at DESC LIMIT 24`, params)
+    .map(row => ({ ...row, payload: parseJsonMaybe(row.payload_json) }));
+  res.json({ data: rows });
+});
+
+router.post('/platform/validation-reports/generate', (req, res) => {
+  const periodType = req.body?.period_type || 'week';
+  if (!['week', 'month'].includes(periodType)) return res.status(400).json({ error: 'period_type 必须是 week/month' });
+  const now = req.body?.as_of ? new Date(req.body.as_of) : new Date();
+  if (Number.isNaN(now.getTime())) return res.status(400).json({ error: 'as_of 日期无效' });
+  res.json(buildValidationReport(periodType, now));
+});
+
+router.get('/platform/optimization-suggestions', (req, res) => {
+  const status = req.query.status;
+  const params = [];
+  const where = status ? 'WHERE o.status = ?' : '';
+  if (status) params.push(status);
+  const rows = all(`SELECT o.*, v.period_type, v.period_key, v.evidence_level
+    FROM optimization_suggestions o
+    LEFT JOIN validation_reports v ON v.id = o.validation_report_id
+    ${where}
+    ORDER BY CASE o.priority WHEN 'P0' THEN 1 WHEN 'P1' THEN 2 ELSE 3 END,
+      o.updated_at DESC, o.id DESC`, params);
+  res.json({ data: rows });
+});
+
+router.post('/platform/optimization-suggestions', (req, res) => {
+  const issue = String(req.body?.issue || '').trim();
+  const moduleName = String(req.body?.module || '').trim();
+  const priority = String(req.body?.priority || 'P1').toUpperCase();
+  if (!issue || !moduleName) return res.status(400).json({ error: 'issue 和 module 不能为空' });
+  if (!['P0', 'P1', 'P2'].includes(priority)) return res.status(400).json({ error: 'priority 必须是 P0/P1/P2' });
+  const result = run(`INSERT INTO optimization_suggestions (
+    validation_report_id, issue, evidence, module, priority, changes_parameters,
+    old_version, new_version, owner, review_window, status, result
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    req.body.validation_report_id || null, issue, req.body.evidence || null, moduleName,
+    priority, req.body.changes_parameters ? 1 : 0, req.body.old_version || null,
+    req.body.new_version || null, req.body.owner || null, req.body.review_window || null,
+    req.body.status || 'proposed', req.body.result || null
+  ]);
+  res.status(201).json({ id: result.lastInsertRowid || getLastInsertRowId() });
+});
+
+router.patch('/platform/optimization-suggestions/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const existing = get('SELECT * FROM optimization_suggestions WHERE id = ?', [id]);
+  if (!existing) return res.status(404).json({ error: '优化建议不存在' });
+  const allowedStatuses = ['proposed', 'accepted', 'observing', 'completed', 'rejected'];
+  const status = req.body.status ?? existing.status;
+  if (!allowedStatuses.includes(status)) return res.status(400).json({ error: 'status 无效' });
+  run(`UPDATE optimization_suggestions SET status = ?, owner = ?, review_window = ?,
+    result = ?, new_version = ?, updated_at = datetime('now') WHERE id = ?`, [
+    status, req.body.owner ?? existing.owner, req.body.review_window ?? existing.review_window,
+    req.body.result ?? existing.result, req.body.new_version ?? existing.new_version, id
+  ]);
+  res.json({ success: true, data: get('SELECT * FROM optimization_suggestions WHERE id = ?', [id]) });
+});
+
+router.get('/platform/transitions', (req, res) => {
+  const rows = all(`SELECT t.*, i.name, i.code, i.object_type, s.report_date, s.report_type,
+      s.score, s.risk_level, s.confidence
+    FROM state_transitions t
+    JOIN observation_items i ON i.id = t.observation_item_id
+    JOIN observation_states s ON s.id = t.observation_state_id
+    ORDER BY t.occurred_at DESC, t.id DESC LIMIT 100`);
+  res.json({ data: rows });
+});
+
 router.get('/knowledge-base', (req, res) => {
   const hasFilters = req.query.q || req.query.domain || req.query.usable_for || req.query.status || req.query.limit;
   const payload = hasFilters
@@ -832,7 +1041,23 @@ router.post('/reports', async (req, res) => {
     risk_warning
   });
 
-  res.json({ success: true, reportId, message: '日报创建成功' });
+  let platformChanges = [];
+  try {
+    const savedReport = get('SELECT * FROM reports WHERE id = ?', [reportId]);
+    if (savedReport) {
+      syncReportState(savedReport);
+      platformChanges = all(`SELECT t.*, i.name, i.code, i.object_type
+        FROM state_transitions t
+        JOIN observation_items i ON i.id = t.observation_item_id
+        JOIN observation_states s ON s.id = t.observation_state_id
+        WHERE s.report_id = ? AND t.transition_type IN ('upgrade', 'downgrade', 'invalidated')
+        ORDER BY t.occurred_at DESC, t.id DESC`, [reportId]);
+    }
+  } catch (error) {
+    console.error('日报状态快照生成失败:', error.message);
+  }
+
+  res.json({ success: true, reportId, platform_changes: platformChanges, message: '日报创建成功' });
 });
 
 // 删除日报

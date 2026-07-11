@@ -2,110 +2,215 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>五行投资日报</title>
-  <link rel="stylesheet" href="style.css?v=53">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f6f7">
+  <title>五行投资观察台</title>
+  <link rel="stylesheet" href="platform.css?v=1">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>五行投资日报</h1>
-      <div class="subtitle">以行业因子为表，市场数据为里，投资决策为主</div>
-      <div class="header-stats">
-        <span id="totalReports">加载中...</span>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="主导航">
+      <a class="brand" href="#today" aria-label="五行投资观察台首页">
+        <span class="brand-mark" aria-hidden="true">五</span>
+        <span><strong>五行投资</strong><small>观察与决策验证台</small></span>
+      </a>
+      <nav class="primary-nav">
+        <button class="nav-item active" data-view="today" type="button"><span>今日</span><small>状态与变化</small></button>
+        <button class="nav-item" data-view="observations" type="button"><span>观察池</span><small>统一状态管理</small></button>
+        <button class="nav-item" data-view="assistant" type="button"><span>AI 分析</span><small>基于冻结数据</small></button>
+        <button class="nav-item" data-view="validations" type="button"><span>验证档案</span><small>结果与归因</small></button>
+      </nav>
+      <div class="sidebar-foot">
+        <span id="serviceDot" class="service-dot"></span>
+        <span><strong id="serviceText">数据连接中</strong><small id="modelVersion">规则版本读取中</small></span>
       </div>
-    </header>
+    </aside>
 
-    <nav class="main-nav">
-      <button id="btnLatest" class="nav-btn active" data-icon="日">大盘日报</button>
-      <button id="btnStock" class="nav-btn" data-icon="股">个股分析</button>
-      <button id="btnAssistant" class="nav-btn" data-icon="AI">AI助手</button>
-      <button id="btnArchive" class="nav-btn" data-icon="档">历史归档</button>
-    </nav>
-
-    <main>
-      <!-- 大盘日报区域 -->
-      <section id="todaySection" class="report-section">
-        <!-- 版本切换标签 -->
-        <div class="version-tabs">
-          <button class="version-tab active" data-type="morning">早盘版</button>
-          <button class="version-tab" data-type="noon">午间版</button>
-          <button class="version-tab" data-type="evening">盘后版</button>
-        </div>
-        <div class="presentation-tabs" aria-label="日报呈现方案">
-          <button class="presentation-tab active" data-view="standard">标准版</button>
-          <button class="presentation-tab" data-view="user">用户视角版</button>
-        </div>
-        
-        <div class="loading" id="loading">正在加载最新日报...</div>
-        <div id="reportContent" class="report-content" style="display: none;"></div>
-      </section>
-
-      <!-- 个股分析区域 -->
-      <section id="stockSection" class="stock-section" style="display: none;">
-        <div class="stock-search">
-          <input type="text" id="stockInput" placeholder="输入股票代码或名称（如：000001 或 平安银行）">
-          <button id="btnAnalyze" class="btn-primary">🔍 四维分析</button>
-        </div>
-        <div id="stockResult" class="stock-result"></div>
-        
-        <!-- 历史查询记录 -->
-        <div class="stock-history-section">
-          <div class="history-header">
-            <h3>📜 查询历史</h3>
-            <button id="btnClearHistory" class="btn-text">清空</button>
-          </div>
-          <div id="stockHistory" class="stock-history-list"></div>
-        </div>
-      </section>
-
-      <!-- AI助手区域 -->
-      <section id="assistantSection" class="assistant-section" style="display: none;">
-        <div id="assistantMessages" class="assistant-messages">
-          <div class="assistant-message assistant">
-            <div class="assistant-bubble">可以问我日报结论、行业五行逻辑、关注标的复盘、知识库规则和项目用法。</div>
-          </div>
-        </div>
-        <div class="assistant-input-bar">
-          <textarea id="assistantInput" rows="2" placeholder="输入问题，例如：今天的主线为什么是这些行业？"></textarea>
-          <button id="btnAssistantSend" class="btn-primary">发送</button>
-        </div>
-      </section>
-
-      <!-- 历史归档区域 -->
-      <section id="archiveSection" class="archive-section" style="display: none;">
-        <div class="archive-list" id="archiveList"></div>
-        <div class="pagination" id="pagination"></div>
-      </section>
-    </main>
-
-    <footer>
-      <p>· 数据驱动 · 风险优先 · 不构成投资建议 ·</p>
-      <p class="disclaimer">⚠️ 投资有风险，入市需谨慎</p>
-    </footer>
-  </div>
-
-  <div id="aiFloatingWidget" class="ai-floating-widget collapsed edge-right" aria-live="polite">
-    <button id="aiFloatTrigger" class="ai-float-trigger" type="button" aria-label="打开AI助手">AI</button>
-    <section id="aiFloatPanel" class="ai-float-panel" aria-hidden="true">
-      <div class="ai-float-head">
+    <div class="workspace">
+      <header class="topbar">
         <div>
-          <strong>AI助手</strong>
-          <span>基于当前日报和知识库回答</span>
+          <h1 id="viewTitle">今日决策面板</h1>
+          <p id="viewSubtitle">状态、风险和变化优先，五行用于解释候选来源</p>
         </div>
-        <div class="ai-float-actions">
-          <button id="btnAssistantFull" type="button">全屏</button>
-          <button id="btnAssistantMinimize" type="button" aria-label="收起AI助手">×</button>
+        <div class="topbar-actions">
+          <div class="period-control" aria-label="日报时点">
+            <button class="period-button active" data-type="morning" type="button">早盘</button>
+            <button class="period-button" data-type="noon" type="button">午间</button>
+            <button class="period-button" data-type="evening" type="button">盘后</button>
+          </div>
+          <button id="refreshButton" class="command-button" type="button">刷新数据</button>
         </div>
-      </div>
-      <div id="assistantFloatingMessages" class="assistant-messages assistant-floating-messages"></div>
-      <div class="assistant-input-bar assistant-floating-input-bar">
-        <textarea id="assistantFloatingInput" rows="2" placeholder="问日报、行业、仓位或标的"></textarea>
-        <button id="btnAssistantFloatingSend" class="btn-primary" type="button">发送</button>
-      </div>
-    </section>
+      </header>
+
+      <main id="mainContent" tabindex="-1">
+        <section id="todayView" class="app-view active" aria-labelledby="viewTitle">
+          <div id="todayLoading" class="loading-state">正在计算当前状态...</div>
+          <div id="todayContent" hidden>
+            <section class="decision-strip" aria-label="当前市场决策状态">
+              <div class="decision-main">
+                <div class="decision-label">当前市场状态</div>
+                <div class="decision-value-row">
+                  <strong id="marketState">--</strong>
+                  <span id="riskLevel" class="status-label">风险 --</span>
+                </div>
+                <p id="marketConclusion">等待日报结论</p>
+              </div>
+              <dl class="decision-meta">
+                <div><dt>报告时点</dt><dd id="reportTime">--</dd></div>
+                <div><dt>数据完整度</dt><dd id="marketCompleteness">--</dd></div>
+                <div><dt>相对上一时点</dt><dd id="stateChange">--</dd></div>
+              </dl>
+            </section>
+
+            <section class="content-band risk-band">
+              <div class="section-heading">
+                <div><h2>风险门控</h2><p>事实、触发条件和对候选方向的影响</p></div>
+                <span id="riskSummary" class="section-status"></span>
+              </div>
+              <div id="riskGateList" class="risk-gate-list"></div>
+            </section>
+
+            <section class="split-band">
+              <div class="change-panel">
+                <div class="section-heading"><div><h2>今日变化</h2><p>只展示会改变关注优先级的信息</p></div></div>
+                <div id="changeList" class="change-list"></div>
+              </div>
+              <div class="element-dial-panel">
+                <div class="section-heading"><div><h2>五行周期盘</h2><p>行业暴露分布，不代表涨跌方向</p></div></div>
+                <div id="elementDial" class="element-dial" role="img" aria-label="Top3行业五行暴露"></div>
+              </div>
+            </section>
+
+            <section class="content-band directions-band">
+              <div class="section-heading">
+                <div><h2>重点方向</h2><p>Top3 默认展开，评分仅用于排序</p></div>
+                <button id="toggleTopFive" class="text-button" type="button">展开 Top5</button>
+              </div>
+              <div id="directionList" class="direction-list"></div>
+            </section>
+
+            <section class="content-band validation-band">
+              <div class="section-heading"><div><h2>待验证事项</h2><p>按到期时间排序，触发后进入验证档案</p></div></div>
+              <div id="todayValidationList" class="validation-list"></div>
+            </section>
+          </div>
+          <div id="todayError" class="error-state" hidden></div>
+        </section>
+
+        <section id="observationsView" class="app-view" aria-labelledby="viewTitle">
+          <div class="tool-rail observation-tools">
+            <div class="filter-group" aria-label="观察池筛选">
+              <button class="filter-button active" data-filter-type="all" type="button">全部</button>
+              <button class="filter-button" data-filter-type="industry" type="button">行业</button>
+              <button class="filter-button" data-filter-type="etf" type="button">ETF</button>
+              <button class="filter-button" data-filter-type="stock" type="button">个股</button>
+            </div>
+            <label class="select-control"><span>状态</span><select id="stateFilter"><option value="">全部状态</option></select></label>
+            <label class="select-control"><span>风险</span><select id="riskFilter"><option value="">全部风险</option><option>低</option><option>中</option><option>高</option></select></label>
+            <button id="openAddObservation" class="command-button primary" type="button">添加标的</button>
+          </div>
+          <div class="observation-summary" id="observationSummary"></div>
+          <div class="table-wrap">
+            <table class="data-table observation-table">
+              <thead><tr><th>名称 / 类型</th><th>当前状态</th><th>评分 / 置信度</th><th>今日变化</th><th>主要驱动</th><th>主要风险</th><th>数据完整度</th><th>下次复核</th></tr></thead>
+              <tbody id="observationRows"></tbody>
+            </table>
+          </div>
+          <div id="observationEmpty" class="empty-state" hidden>当前筛选条件下没有观察标的。</div>
+        </section>
+
+        <section id="assistantView" class="app-view assistant-workspace" aria-labelledby="viewTitle">
+          <aside class="assistant-context">
+            <h2>分析上下文</h2>
+            <dl id="assistantContextData"></dl>
+            <h3>常用问题</h3>
+            <div class="question-list">
+              <button type="button" data-question="解释今天的市场状态、风险门控和Top3变化。">解释今日状态</button>
+              <button type="button" data-question="总结观察池最近的升级、降级和待验证事项。">总结观察池变化</button>
+              <button type="button" data-question="去除五行先验后，当前行业排序应如何理解？">对比因子作用</button>
+            </div>
+          </aside>
+          <div class="assistant-main">
+            <div id="assistantMessages" class="assistant-messages" aria-live="polite">
+              <article class="assistant-message assistant">
+                <div class="message-author">分析助手</div>
+                <div class="message-body"><p>可以解释市场状态、行业排序、观察标的和验证结果。回答会区分已观测事实、条件式计划和缺失数据。</p></div>
+              </article>
+            </div>
+            <form id="assistantForm" class="assistant-composer">
+              <textarea id="assistantInput" rows="3" placeholder="输入市场、行业、ETF 或个股问题" aria-label="分析问题"></textarea>
+              <div><span>不构成投资建议</span><button class="command-button primary" type="submit">发送分析</button></div>
+            </form>
+          </div>
+        </section>
+
+        <section id="validationsView" class="app-view" aria-labelledby="viewTitle">
+          <div id="validationMetrics" class="metric-strip"></div>
+          <div class="tool-rail validation-tools">
+            <div class="filter-group" aria-label="验证视图">
+              <button class="validation-mode active" data-validation-mode="tasks" type="button">前向任务</button>
+              <button class="validation-mode" data-validation-mode="attribution" type="button">因子对照</button>
+              <button class="validation-mode" data-validation-mode="reports" type="button">周月摘要</button>
+            </div>
+            <button id="runValidation" class="command-button" type="button">结算到期任务</button>
+            <button id="generateWeeklyReport" class="command-button" type="button">生成周报</button>
+            <button id="generateMonthlyReport" class="command-button" type="button">生成月报</button>
+          </div>
+          <div id="validationTasksPanel">
+          <div class="validation-layout">
+            <section class="validation-primary">
+              <div class="section-heading"><div><h2>验证任务</h2><p>基于冻结快照和下一交易日执行口径</p></div>
+                <div class="filter-group"><button class="validation-filter active" data-status="pending" type="button">待验证</button><button class="validation-filter" data-status="" type="button">全部</button></div>
+              </div>
+              <div class="table-wrap"><table class="data-table"><thead><tr><th>对象</th><th>冻结状态</th><th>窗口</th><th>到期</th><th>验证条件</th><th>结果</th></tr></thead><tbody id="validationRows"></tbody></table></div>
+            </section>
+            <aside class="transition-rail">
+              <div class="section-heading"><div><h2>状态轨迹</h2><p>成功与失败使用同一结构</p></div></div>
+              <div id="transitionTimeline" class="timeline"></div>
+            </aside>
+          </div>
+          </div>
+          <section id="attributionPanel" class="validation-analysis-panel" hidden>
+            <div class="section-heading"><div><h2>A-E 因子对照</h2><p>同一冻结回测运行的探索性重排，不替代独立生产回测</p></div>
+              <label class="select-control"><span>持有期</span><select id="attributionHorizon"><option value="1">1日</option><option value="3">3日</option><option value="5" selected>5日</option><option value="10">10日</option></select></label>
+            </div>
+            <div id="attributionMeta" class="analysis-note"></div>
+            <div id="attributionGrid" class="attribution-grid"></div>
+          </section>
+          <section id="validationReportsPanel" class="validation-analysis-panel" hidden>
+            <div class="section-heading"><div><h2>周月验证摘要</h2><p>展示正反样本、证据等级、限制与下一步</p></div></div>
+            <div id="validationReportList" class="report-list"></div>
+            <div class="section-heading optimization-heading"><div><h2>优化建议台账</h2><p>验证证据进入统一治理流程，参数变更需保留版本与复核窗口</p></div></div>
+            <div id="optimizationList" class="optimization-list"></div>
+          </section>
+        </section>
+      </main>
+    </div>
   </div>
 
-  <script src="app.js?v=53"></script>
+  <nav class="mobile-nav" aria-label="移动端主导航">
+    <button class="active" data-view="today" type="button">今日</button>
+    <button data-view="observations" type="button">观察池</button>
+    <button data-view="assistant" type="button">AI 分析</button>
+    <button data-view="validations" type="button">验证档案</button>
+  </nav>
+
+  <dialog id="addObservationDialog" class="dialog">
+    <form id="addObservationForm" method="dialog">
+      <div class="dialog-head"><div><h2>添加观察标的</h2><p>支持行业、ETF 和沪深 A 股</p></div><button class="close-button" value="cancel" type="submit" aria-label="关闭">×</button></div>
+      <label><span>名称或六位代码</span><input id="observationQuery" required autocomplete="off" placeholder="例如：半导体、512480、603636"></label>
+      <label><span>对象类型</span><select id="observationType"><option value="">自动识别</option><option value="industry">行业</option><option value="etf">ETF</option><option value="stock">个股</option></select></label>
+      <div id="addObservationError" class="form-error" hidden></div>
+      <div class="dialog-actions"><button class="command-button" value="cancel" type="submit">取消</button><button id="submitObservation" class="command-button primary" type="button">加入观察池</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="detailDialog" class="detail-dialog">
+    <div class="dialog-head"><div><h2 id="detailTitle">标的详情</h2><p id="detailSubtitle"></p></div><button id="closeDetail" class="close-button" type="button" aria-label="关闭">×</button></div>
+    <div id="detailContent" class="detail-content"></div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="platform.js?v=1"></script>
 </body>
 </html>

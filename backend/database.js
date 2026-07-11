@@ -293,6 +293,109 @@ function initDatabase() {
       excess_return_pct REAL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE IF NOT EXISTS observation_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      object_key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      code TEXT,
+      object_type TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'system',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS observation_states (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      observation_item_id INTEGER NOT NULL,
+      report_id INTEGER,
+      report_date TEXT NOT NULL,
+      report_type TEXT NOT NULL,
+      state TEXT NOT NULL,
+      score REAL,
+      confidence TEXT,
+      risk_level TEXT,
+      completeness REAL,
+      summary TEXT,
+      primary_driver TEXT,
+      primary_risk TEXT,
+      upgrade_condition TEXT,
+      downgrade_condition TEXT,
+      invalidation_condition TEXT,
+      factor_snapshot_json TEXT,
+      source_meta_json TEXT,
+      observed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      algorithm_version TEXT NOT NULL DEFAULT 'observation-state-v1'
+    )`,
+    `CREATE TABLE IF NOT EXISTS state_transitions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      observation_item_id INTEGER NOT NULL,
+      observation_state_id INTEGER NOT NULL,
+      from_state TEXT,
+      to_state TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      transition_type TEXT NOT NULL,
+      occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS validation_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      observation_item_id INTEGER NOT NULL,
+      observation_state_id INTEGER NOT NULL,
+      transition_id INTEGER,
+      horizon_days INTEGER NOT NULL,
+      due_date TEXT,
+      condition_text TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME
+    )`,
+    `CREATE TABLE IF NOT EXISTS validation_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      validation_task_id INTEGER NOT NULL UNIQUE,
+      absolute_return REAL,
+      benchmark_excess REAL,
+      relative_excess REAL,
+      max_favorable REAL,
+      max_adverse REAL,
+      condition_triggered INTEGER,
+      risk_triggered_first INTEGER,
+      verdict TEXT,
+      result_json TEXT,
+      calculated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_preferences (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      risk_preference TEXT NOT NULL DEFAULT 'balanced',
+      reminder_enabled INTEGER NOT NULL DEFAULT 1,
+      reminder_events_json TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS validation_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      period_type TEXT NOT NULL,
+      period_key TEXT NOT NULL,
+      algorithm_version TEXT NOT NULL,
+      evidence_level TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(period_type, period_key, algorithm_version)
+    )`,
+    `CREATE TABLE IF NOT EXISTS optimization_suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      validation_report_id INTEGER,
+      issue TEXT NOT NULL,
+      evidence TEXT,
+      module TEXT NOT NULL,
+      priority TEXT NOT NULL,
+      changes_parameters INTEGER NOT NULL DEFAULT 0,
+      old_version TEXT,
+      new_version TEXT,
+      owner TEXT,
+      review_window TEXT,
+      status TEXT NOT NULL DEFAULT 'proposed',
+      result TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
   ];
 
   console.log('开始建表...');
@@ -355,10 +458,26 @@ function initDatabase() {
     'CREATE INDEX IF NOT EXISTS idx_ia_runs_created ON ia_backtest_runs(created_at DESC)',
     'CREATE INDEX IF NOT EXISTS idx_ia_signals_run_date ON ia_backtest_signals(run_id, signal_date)',
     'CREATE INDEX IF NOT EXISTS idx_ia_returns_run_date ON ia_backtest_returns(run_id, signal_date)',
+    'CREATE INDEX IF NOT EXISTS idx_observation_items_type ON observation_items(object_type, active)',
+    'CREATE INDEX IF NOT EXISTS idx_observation_states_item_time ON observation_states(observation_item_id, observed_at DESC)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_states_item_report ON observation_states(observation_item_id, report_id, report_type)',
+    'CREATE INDEX IF NOT EXISTS idx_state_transitions_item_time ON state_transitions(observation_item_id, occurred_at DESC)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_validation_task_state_horizon ON validation_tasks(observation_state_id, horizon_days)',
+    'CREATE INDEX IF NOT EXISTS idx_validation_tasks_status_due ON validation_tasks(status, due_date)',
+    'CREATE INDEX IF NOT EXISTS idx_validation_reports_period ON validation_reports(period_type, period_key)',
+    'CREATE INDEX IF NOT EXISTS idx_optimization_status ON optimization_suggestions(status, priority)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_optimization_report_issue ON optimization_suggestions(validation_report_id, issue)',
   ];
   for (const sql of indexes) {
     try { db.exec(sql); } catch(e) {}
   }
+
+  try {
+    db.prepare(`INSERT OR IGNORE INTO user_preferences (
+      id, risk_preference, reminder_enabled, reminder_events_json
+    ) VALUES (1, 'balanced', 1, ?)`)
+      .run(JSON.stringify(['upgrade', 'downgrade', 'invalidated', 'data_degraded']));
+  } catch(e) {}
 
   console.log('数据库表初始化完成');
   return db;

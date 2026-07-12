@@ -1,4 +1,5 @@
-const API = '/api';
+const APP_BASE = location.pathname === '/daily' || location.pathname.startsWith('/daily/') ? '/daily' : '';
+const API = `${APP_BASE}/api`;
 const STATES = ['未覆盖', '初步观察', '等待确认', '条件改善', '重点跟踪', '降级观察', '逻辑失效'];
 const viewMeta = {
   today: ['今日决策面板', '状态、风险和变化优先，五行用于解释候选来源'],
